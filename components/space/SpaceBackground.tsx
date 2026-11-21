@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useScroll } from "framer-motion";
 import { Component, type ReactNode, useEffect, useState } from "react";
 import { BACKGROUND_SOURCE, ENABLE_3D_SHIP } from "@/lib/ship.config";
 
@@ -36,6 +37,7 @@ function supportsWebGL() {
 
 export function SpaceBackground() {
   const [mode, setMode] = useState<DisplayMode>(ENABLE_3D_SHIP ? "fallback" : "disabled");
+  const { scrollYProgress } = useScroll();
 
   useEffect(() => {
     if (!ENABLE_3D_SHIP) {
@@ -94,7 +96,7 @@ export function SpaceBackground() {
       <div className="space-background__vignette" />
       {mode === "active" && (
         <CanvasErrorBoundary onFailure={handleFailure}>
-          <SpaceBackgroundCanvas />
+          <SpaceBackgroundCanvas scrollProgress={scrollYProgress} />
         </CanvasErrorBoundary>
       )}
     </div>
