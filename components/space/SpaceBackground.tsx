@@ -10,7 +10,7 @@ const SpaceBackgroundCanvas = dynamic(() => import("@/components/space/SpaceBack
   loading: () => null,
 });
 
-type DisplayMode = "disabled" | "fallback" | "active";
+type DisplayMode = "fallback" | "active";
 
 class CanvasErrorBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
   state = { failed: false };
@@ -29,22 +29,26 @@ class CanvasErrorBoundary extends Component<{ children: ReactNode; onFailure: ()
 }
 
 function supportsWebGL() {
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
-  context?.getExtension("WEBGL_lose_context")?.loseContext();
-  return Boolean(context);
+  try {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    context?.getExtension("WEBGL_lose_context")?.loseContext();
+    return Boolean(context);
+  } catch {
+    return false;
+  }
 }
 
 export function SpaceBackground() {
-  const [mode, setMode] = useState<DisplayMode>(ENABLE_3D_SHIP ? "fallback" : "disabled");
+  if (!ENABLE_3D_SHIP) return null;
+  return <EnabledSpaceBackground />;
+}
+
+function EnabledSpaceBackground() {
+  const [mode, setMode] = useState<DisplayMode>("fallback");
   const { scrollYProgress } = useScroll();
 
   useEffect(() => {
-    if (!ENABLE_3D_SHIP) {
-      setMode("disabled");
-      return;
-    }
-
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const updateMode = () => {
       const limitedHardware = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency <= 4;
@@ -62,7 +66,7 @@ export function SpaceBackground() {
 
   useEffect(() => {
     document.body.classList.toggle("space-canvas-active", mode === "active");
-    document.body.classList.toggle("space-background-present", mode !== "disabled");
+    document.body.classList.add("space-background-present");
     return () => {
       document.body.classList.remove("space-canvas-active");
       document.body.classList.remove("space-background-present");
@@ -87,7 +91,6 @@ export function SpaceBackground() {
   }, [mode]);
 
   const handleFailure = () => setMode("fallback");
-  if (mode === "disabled") return null;
   return (
     <div className={`space-background space-background--${mode} space-background--${BACKGROUND_SOURCE}`} aria-hidden="true">
       <div className="space-background__image" />

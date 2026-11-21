@@ -411,6 +411,11 @@ pre {
   .ship-preview__frame { height: 55vh; min-height: 340px; }
 }
 
+@media (min-width: 601px) and (max-width: 1023px) {
+  .hero-ask { width: min(100%, 360px); }
+  .hero-ship-trigger { right: 12%; width: 25%; height: 36%; }
+}
+
 @keyframes star-drift-far {
   to { transform: translate3d(-2.5%, 2%, 0); }
 }
@@ -453,6 +458,22 @@ pre {
   border-radius: 999px;
   background: rgb(108 184 255 / 8%);
 }
+
+.hero-skip-flight {
+  position: absolute;
+  z-index: 4;
+  right: 24px;
+  bottom: 18px;
+  visibility: hidden;
+  color: var(--ion);
+  font-family: var(--font-fira-code), monospace;
+  font-size: 0.78rem;
+  text-decoration-color: rgb(108 184 255 / 55%);
+  text-underline-offset: 4px;
+}
+
+.space-canvas-active .hero-skip-flight { visibility: visible; }
+.hero-skip-flight:focus-visible { border-radius: 4px; }
 
 .space-canvas-active .space-background__image {
   will-change: transform;

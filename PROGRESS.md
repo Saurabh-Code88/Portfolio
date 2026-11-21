@@ -6,9 +6,10 @@
 - Step 3 — Ship preview: `/dev/ship` is a client-only, lazy-loaded R3F route with orbit controls, axes/grid, procedural lightformers, bloom, endpoint labels, and additive nozzle sprites/cones/lights. Lint, typecheck, all 8 tests, and build pass.
 - Step 4 — Site background and hero ship: active desktop mode lazy-loads a transparent full-screen canvas after the hero, with image/procedural CSS backdrops, star parallax, boot streaks, idle pointer tilt, and a cooldown barrel-roll/engine flare trigger. Reduced-motion, narrow, low-core, unsupported WebGL, and canvas-error paths use the static CSS background. `ENABLE_3D_SHIP=false` removes the optional background/canvas and keeps the existing hero starfield. Commit: `fe566db`.
 - Step 5 — Flight between sections: Framer Motion `useScroll` progress samples the six-point Catmull-Rom path using the actual existing section offsets. Smooth easing docks at each stop; the research stop is on the bright right side. Curvature banking, a lagged chase camera, section-transition FOV/warp streaks, and a short Sparkles trail are active only in the 3D path.
+- Step 6 — Fallbacks, performance, and navigation: added the active-mode "Skip the flight" link; both canvases cap DPR at 1.75; cloned model geometry/materials/textures and the cached source assets are disposed on unmount. Responsive, reduced-motion, low-core, WebGL test, and render-error fallbacks are in place. Final checks pending.
 
 ## Next
-- Step 6 — Finalize fallbacks, performance, and skip-flight navigation, then rerun lint, typecheck, tests, and build.
+- Run the step 6 lint, typecheck, test, and build checks; record final bundle and asset sizes.
 
 ## Decisions
 - The supplied background image is a 1002×768 PNG, preserved unchanged as `assets-src/space-bg.png`; it was upscaled with Lanczos to 2560×1962 and exported as progressive JPEG quality 80 (275,763 bytes).

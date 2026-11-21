@@ -72,6 +72,13 @@ export function Hero() {
             aria-label="Make the ship perform a barrel roll"
             onClick={() => window.dispatchEvent(new Event("portfolio:ship-roll"))}
           />
+          <a
+            href="#toolkit"
+            className="hero-skip-flight"
+            onClick={() => window.dispatchEvent(new Event("portfolio:skip-flight"))}
+          >
+            Skip the flight
+          </a>
           <div className="hero-panel__content">
             <p className="hero-kicker">
               {profile.name} · {profile.role}

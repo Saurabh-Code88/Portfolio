@@ -78,6 +78,7 @@ function FlightShip({
   const pointer = useRef({ x: 0, y: 0 });
   const rollStart = useRef<number | null>(null);
   const lastRoll = useRef(0);
+  const skipFlight = useRef(false);
   const enginePower = useRef(1);
   const stops = useRef(FLIGHT_SECTION_IDS.map((_, index) => index / (FLIGHT_SECTION_IDS.length - 1)));
   const orientation = useMemo(() => new Quaternion(), []);
@@ -121,16 +122,34 @@ function FlightShip({
       lastRoll.current = now;
       rollStart.current = now;
     };
+    const handleSkip = () => {
+      skipFlight.current = true;
+      ready.current = true;
+      rollStart.current = null;
+    };
     window.addEventListener("pointermove", handlePointer, { passive: true });
     window.addEventListener("portfolio:ship-roll", handleRoll);
+    window.addEventListener("portfolio:skip-flight", handleSkip);
     return () => {
       window.removeEventListener("pointermove", handlePointer);
       window.removeEventListener("portfolio:ship-roll", handleRoll);
+      window.removeEventListener("portfolio:skip-flight", handleSkip);
     };
-  }, []);
+  }, [ready]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
+    if (skipFlight.current) {
+      group.current.visible = false;
+      if (trail.current) trail.current.visible = false;
+      warp.current = 0;
+      enginePower.current = 1;
+      if (state.camera instanceof PerspectiveCamera) {
+        state.camera.fov = MathUtils.damp(state.camera.fov, 48, 3.4, delta);
+        state.camera.updateProjectionMatrix();
+      }
+      return;
+    }
     const sample = sampleFlight(progress.get(), stops.current);
     shipTarget.copy(sample.position);
     shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * 0.035 + pointer.current.y * -0.04;

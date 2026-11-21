@@ -38,6 +38,18 @@ function cloneTexturedScene(source: Object3D) {
   return clone;
 }
 
+function disposeTexturedScene(scene: Object3D) {
+  scene.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    object.geometry.dispose();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => {
+      for (const value of Object.values(material)) if (value instanceof Texture) value.dispose();
+      material.dispose();
+    });
+  });
+}
+
 function useEngineGlow() {
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -104,16 +116,11 @@ export function ShipModel({
   const modelRotation = forwardSign < 0 ? Math.PI : 0;
   useEffect(() => onLoad?.(), [onLoad]);
   useEffect(() => () => {
-    model.traverse((object) => {
-      if (!(object instanceof Mesh)) return;
-      object.geometry.dispose();
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach((material) => {
-        for (const value of Object.values(material)) if (value instanceof Texture) value.dispose();
-        material.dispose();
-      });
-    });
-  }, [model]);
+    disposeTexturedScene(model);
+    // This portfolio renders one ship instance per route; clear Drei's cached source so its GPU assets can be released too.
+    useGLTF.clear("/models/ship.glb");
+    disposeTexturedScene(gltf.scene);
+  }, [gltf.scene, model]);
   const nozzles = nozzleOffsets.map(([x, y, z]) => [x, y, z] as const);
 
   return (
