@@ -203,6 +203,10 @@ pre {
 
 .hero-scroll__dragon {
   opacity: 0.62;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: perspective(520px) rotateX(var(--dragon-tilt-x, 0deg)) rotateY(var(--dragon-tilt-y, 0deg)) translate3d(var(--dragon-x, 0px), var(--dragon-y, 0px), 0);
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1);
 }
 
 .hero-scroll__content {
@@ -840,6 +844,11 @@ pre {
 
   .hero-scroll {
     clip-path: inset(0 0 0% 0 round 24px);
+  }
+
+  .hero-scroll__dragon {
+    transform: none;
+    transition-duration: 0.01ms;
   }
 
   .toolkit-group:hover,

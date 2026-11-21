@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { profile } from "@/content/profile";
 import { askCopy } from "@/content/ask";
 import { ASK_LIMITS } from "@/lib/ask-config";
@@ -10,10 +10,37 @@ export function Hero() {
   const reduceMotion = useReducedMotion();
   const controls = useAnimationControls();
   const hasUnrolled = useRef(false);
+  const dragonRef = useRef<SVGGElement>(null);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState(profile.askStatus);
   const [isAsking, setIsAsking] = useState(false);
+
+  function moveDragon(event: ReactPointerEvent<HTMLDivElement>) {
+    const dragon = dragonRef.current;
+    if (!dragon || event.pointerType === "touch") return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const relativeX = (event.clientX - bounds.left) / bounds.width;
+    const relativeY = (event.clientY - bounds.top) / bounds.height;
+    const insideDragonZone = relativeX > 0.62;
+    const x = insideDragonZone ? Math.max(-1, Math.min(1, (relativeX - 0.82) / 0.18)) : 0;
+    const y = insideDragonZone ? Math.max(-1, Math.min(1, (relativeY - 0.58) / 0.42)) : 0;
+
+    dragon.style.setProperty("--dragon-x", `${x * 8}px`);
+    dragon.style.setProperty("--dragon-y", `${y * 6}px`);
+    dragon.style.setProperty("--dragon-tilt-x", `${-y * 4}deg`);
+    dragon.style.setProperty("--dragon-tilt-y", `${x * 5}deg`);
+  }
+
+  function resetDragon() {
+    const dragon = dragonRef.current;
+    if (!dragon) return;
+    dragon.style.setProperty("--dragon-x", "0px");
+    dragon.style.setProperty("--dragon-y", "0px");
+    dragon.style.setProperty("--dragon-tilt-x", "0deg");
+    dragon.style.setProperty("--dragon-tilt-y", "0deg");
+  }
 
   async function handleAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,6 +109,8 @@ export function Hero() {
           className="hero-scroll"
           initial={false}
           animate={controls}
+          onPointerMove={moveDragon}
+          onPointerLeave={resetDragon}
           variants={{
             rolled: { clipPath: "inset(0 0 86% 0 round 24px)" },
             unrolled: { clipPath: "inset(0 0 0% 0 round 24px)" },
@@ -127,6 +156,7 @@ export function Hero() {
             </g>
 
             <g
+              ref={dragonRef}
               className="hero-scroll__dragon"
               fill="none"
               stroke="var(--rust)"
