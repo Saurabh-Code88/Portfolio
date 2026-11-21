@@ -3,9 +3,9 @@
 ## Done
 - Step 1 — Assets: source assets copied into `assets-src/`; background resized and exported; ship optimization attempted, then unchanged copy used after npm registry returned `ECOMPROMISED`. Credits file added with licenses to confirm. Scene defaults are in `lib/ship.config.ts`; orientation, scale, nozzle offsets, and scan axis are TODO guesses. Assets commit: `8a888ff`.
 - Step 2 — Dependencies: installed Three.js 0.187.0, `@types/three` 0.187.0, Fiber 9.8.2, Drei 10.7.9, and React Three Postprocessing 3.2.2. `npm ls` exits cleanly with React 19.3.1 and Next 15.5.29.
+- Step 3 — Ship preview: `/dev/ship` is a client-only, lazy-loaded R3F route with orbit controls, axes/grid, procedural lightformers, bloom, endpoint labels, and additive nozzle sprites/cones/lights. Lint, typecheck, all 8 tests, and build pass.
 
 ## Next
-- Step 3 — Build the client-only ship preview at `/dev/ship`, then run lint, typecheck, tests, and build.
 - Step 4 — Add the optional fixed site background and hero ship, with reduced-motion/device/WebGL fallbacks.
 - Step 5 — Add section-linked flight path and navigation/effects.
 - Step 6 — Finalize fallbacks, performance, and skip-flight navigation, then rerun lint, typecheck, tests, and build.
@@ -16,3 +16,4 @@
 - The attached background's original creator/source and license were not supplied; `public/CREDITS.md` marks them TO CONFIRM.
 - No API routes, content data, tests, or `docs/PORTFOLIO_STATUS.md` were changed.
 - Dependency install completed with no reported peer conflicts; `npm ls three @types/three @react-three/fiber @react-three/drei @react-three/postprocessing react next` exits 0.
+- The preview route reports 1.83 kB route JS / 108 kB first-load JS in Next build output; the R3F canvas is loaded through a dynamic chunk after the route mounts.
