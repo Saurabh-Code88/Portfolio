@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fira_Code, IBM_Plex_Sans, Shippori_Mincho } from "next/font/google";
 import { profile } from "@/content/profile";
+import { SiteNav } from "@/components/site-nav";
 import { siteUrl } from "@/lib/site-url";
 import "./globals.css";
 
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${shipporiMincho.variable} ${ibmPlexSans.variable} ${firaCode.variable}`}>
         <a className="skip-link" href="#main-content">Skip to content</a>
+        <SiteNav />
         {children}
       </body>
     </html>
