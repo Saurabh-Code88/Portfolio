@@ -1,7 +1,7 @@
 # Space ship theme implementation progress
 
 ## Done
-- Step 1 — Assets: source assets copied into `assets-src/`; background resized and exported; ship optimization attempted, then unchanged copy used after npm registry returned `ECOMPROMISED`. Credits file added with licenses to confirm. Commit: `8a888ff`.
+- Step 1 — Assets: source assets copied into `assets-src/`; background resized and exported; ship optimization attempted, then unchanged copy used after npm registry returned `ECOMPROMISED`. Credits file added with licenses to confirm. Scene defaults are in `lib/ship.config.ts`; orientation, scale, nozzle offsets, and scan axis are TODO guesses. Assets commit: `8a888ff`.
 - Step 2 — Dependencies: installed Three.js 0.187.0, `@types/three` 0.187.0, Fiber 9.8.2, Drei 10.7.9, and React Three Postprocessing 3.2.2. `npm ls` exits cleanly with React 19.3.1 and Next 15.5.29.
 
 ## Next
