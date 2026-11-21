@@ -196,6 +196,93 @@ pre {
   box-shadow: 0 28px 90px rgb(0 0 0 / 28%);
 }
 
+.space-background {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+.space-background__image,
+.space-background__vignette,
+.space-background__stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.space-background__image {
+  inset: -3%;
+  background-image: url("/backgrounds/space-bg.jpg");
+  background-position: center;
+  background-size: cover;
+  opacity: 0.78;
+}
+
+.space-background__vignette {
+  z-index: 1;
+  background: radial-gradient(ellipse at 50% 45%, transparent 8%, rgb(5 7 10 / 30%) 60%, rgb(5 7 10 / 90%) 120%), linear-gradient(180deg, rgb(5 7 10 / 24%), transparent 34%, rgb(5 7 10 / 48%));
+}
+
+.space-background__stars {
+  z-index: 2;
+  background-repeat: repeat;
+}
+
+.space-background__stars--far {
+  opacity: 0.34;
+  background-image: radial-gradient(circle, rgb(108 184 255 / 65%) 0 1px, transparent 1.6px), radial-gradient(circle, rgb(232 160 69 / 42%) 0 1px, transparent 1.6px);
+  background-size: 81px 81px, 131px 131px;
+  background-position: 2px 16px, 29px 43px;
+}
+
+.space-background__stars--near {
+  opacity: 0.2;
+  background-image: radial-gradient(circle, rgb(243 227 200 / 75%) 0 1px, transparent 1.8px);
+  background-size: 167px 167px;
+  background-position: 43px 7px;
+}
+
+.space-background--image .space-background__image { display: block; }
+.space-background--procedural .space-background__image { display: none; }
+
+.space-background--procedural::before {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse 42% 9% at 70% 47%, rgb(232 160 69 / 42%) 0%, rgb(196 122 32 / 22%) 28%, transparent 72%), radial-gradient(ellipse 32% 34% at 70% 47%, transparent 56%, rgb(232 160 69 / 18%) 59%, transparent 66%);
+  content: "";
+}
+
+.space-background--active .space-background__stars { display: none; }
+
+.space-background--active .space-background__image {
+  transform: translate3d(var(--space-pointer-x, 0px), var(--space-pointer-y, 0px), 0) scale(1.04);
+  transition: transform 700ms ease-out;
+}
+
+.space-background canvas {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+
+.space-background--active ~ .hero-page .hero-starfield { display: none; }
+.space-canvas-active .hero-panel { background: rgb(16 24 32 / 46%); }
+
+.space-canvas-active .hero-panel::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(5 7 10 / 74%) 0%, rgb(5 7 10 / 55%) 49%, transparent 100%);
+  content: "";
+  pointer-events: none;
+}
+
 .hero-starfield {
   position: absolute;
   z-index: -1;
@@ -333,11 +420,50 @@ pre {
 }
 
 .hero-panel__content {
+  position: relative;
+  z-index: 2;
   display: flex;
   min-height: inherit;
   flex-direction: column;
   justify-content: center;
   padding: clamp(120px, 16vh, 156px) clamp(38px, 8vw, 110px);
+}
+
+.hero-ship-trigger {
+  position: absolute;
+  z-index: 3;
+  top: 32%;
+  right: 4%;
+  width: 34%;
+  height: 48%;
+  visibility: hidden;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.space-canvas-active .hero-ship-trigger {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.hero-ship-trigger:focus-visible {
+  border: 1px solid var(--ion);
+  border-radius: 999px;
+  background: rgb(108 184 255 / 8%);
+}
+
+.space-canvas-active .space-background__image {
+  will-change: transform;
+}
+
+.space-canvas-active .space-background__stars { display: none; }
+
+.space-background-present main > .hero-page,
+.space-background-present main > .content-section {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-kicker {

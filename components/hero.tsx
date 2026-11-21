@@ -59,14 +59,19 @@ export function Hero() {
   }
 
   return (
-    <section className="hero-page" aria-labelledby="hero-heading">
+    <section className="hero-page" aria-labelledby="hero-heading" data-flight-section="hero">
       <div className="hero">
         <div className="hero-panel">
           <div className="hero-starfield" aria-hidden="true">
             <div className="hero-starfield__layer hero-starfield__layer--far" />
             <div className="hero-starfield__layer hero-starfield__layer--near" />
           </div>
-          {/* Future ship canvas goes here as a decorative background layer. */}
+          <button
+            className="hero-ship-trigger"
+            type="button"
+            aria-label="Make the ship perform a barrel roll"
+            onClick={() => window.dispatchEvent(new Event("portfolio:ship-roll"))}
+          />
           <div className="hero-panel__content">
             <p className="hero-kicker">
               {profile.name} · {profile.role}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Html, useGLTF } from "@react-three/drei";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import {
   AdditiveBlending,
   CanvasTexture,
@@ -10,9 +10,11 @@ import {
   Material,
   Mesh,
   Object3D,
+  PointLight,
   SRGBColorSpace,
   Texture,
 } from "three";
+import { useFrame } from "@react-three/fiber";
 import { forwardSign, nozzleOffsets, scale } from "@/lib/ship.config";
 
 function cloneTexturedScene(source: Object3D) {
@@ -59,26 +61,48 @@ function useEngineGlow() {
   return texture;
 }
 
-function EngineEffects({ position }: { position: readonly [number, number, number] }) {
+function EngineEffects({ position, power }: { position: readonly [number, number, number]; power: MutableRefObject<number> }) {
   const glow = useEngineGlow();
+  const group = useRef<Object3D>(null);
+  const light = useRef<PointLight>(null);
+  useFrame(() => {
+    const intensity = Math.max(0.1, power.current);
+    group.current?.scale.setScalar(intensity);
+    if (light.current) light.current.intensity = 1.5 * intensity;
+  });
   return (
     <group position={position as [number, number, number]}>
-      <sprite scale={[0.34, 0.34, 1]}>
+      <group ref={group}>
+        <sprite scale={[0.34, 0.34, 1]}>
         <spriteMaterial map={glow} color={new Color("#ffb55d")} transparent opacity={0.86} blending={AdditiveBlending} depthWrite={false} />
-      </sprite>
-      <mesh position={[0, 0, -0.16 * forwardSign]} rotation={[-Math.PI / 2, 0, 0]}>
-        <coneGeometry args={[0.075, 0.3, 12, 1, true]} />
-        <meshBasicMaterial color="#ff9d3b" transparent opacity={0.34} blending={AdditiveBlending} depthWrite={false} side={DoubleSide} />
-      </mesh>
-      <pointLight position={[0, 0, -0.1 * forwardSign]} color="#ff9d3b" intensity={1.5} distance={1.4} decay={2} />
+        </sprite>
+        <mesh position={[0, 0, -0.16 * forwardSign]} rotation={[-Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.075, 0.3, 12, 1, true]} />
+          <meshBasicMaterial color="#ff9d3b" transparent opacity={0.34} blending={AdditiveBlending} depthWrite={false} side={DoubleSide} />
+        </mesh>
+        <pointLight ref={light} position={[0, 0, -0.1 * forwardSign]} color="#ff9d3b" intensity={1.5} distance={1.4} decay={2} />
+      </group>
     </group>
   );
 }
 
-export function ShipModel({ onClick }: { onClick?: () => void }) {
+export function ShipModel({
+  onClick,
+  onLoad,
+  labels = true,
+  enginePower,
+}: {
+  onClick?: () => void;
+  onLoad?: () => void;
+  labels?: boolean;
+  enginePower?: MutableRefObject<number>;
+}) {
   const gltf = useGLTF("/models/ship.glb");
   const model = useMemo(() => cloneTexturedScene(gltf.scene), [gltf.scene]);
+  const defaultEnginePower = useRef(1);
+  const sharedEnginePower = enginePower ?? defaultEnginePower;
   const modelRotation = forwardSign < 0 ? Math.PI : 0;
+  useEffect(() => onLoad?.(), [onLoad]);
   useEffect(() => () => {
     model.traverse((object) => {
       if (!(object instanceof Mesh)) return;
@@ -95,13 +119,9 @@ export function ShipModel({ onClick }: { onClick?: () => void }) {
   return (
     <group scale={scale} rotation={[0, modelRotation, 0]} onClick={(event) => { event.stopPropagation(); onClick?.(); }}>
       <primitive object={model} />
-      {nozzles.map((position, index) => <EngineEffects key={index} position={position} />)}
-      <Html position={[0, 0, 1.15]} center distanceFactor={5}>
-        <span className="ship-end-label">+Z</span>
-      </Html>
-      <Html position={[0, 0, -1.15]} center distanceFactor={5}>
-        <span className="ship-end-label">-Z</span>
-      </Html>
+      {nozzles.map((position, index) => <EngineEffects key={index} position={position} power={sharedEnginePower} />)}
+      {labels && <Html position={[0, 0, 1.15]} center distanceFactor={5}><span className="ship-end-label">+Z</span></Html>}
+      {labels && <Html position={[0, 0, -1.15]} center distanceFactor={5}><span className="ship-end-label">-Z</span></Html>}
     </group>
   );
 }
