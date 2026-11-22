@@ -3,18 +3,12 @@
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, Box3, CanvasTexture, Color, Group, InstancedMesh, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, PointLight, SpriteMaterial, SRGBColorSpace, Texture, Vector3 } from "three";
+import { AdditiveBlending, Box3, CanvasTexture, Color, Group, Material, Mesh, MeshBasicMaterial, Object3D, PointLight, SRGBColorSpace, Texture, Vector3 } from "three";
 import {
   DOCK_POINT,
-  getStationRimGlowOffsets,
-  STATION_ANTENNA_GLOW_OFFSETS,
   STATION_DIAMETER,
   STATION_DOCK_LIGHT_OFFSET,
   STATION_POD_GLOW_OFFSETS,
-  STATION_RIM_GLOW_COUNT,
-  STATION_RIM_GLOW_HEIGHT,
-  STATION_RIM_GLOW_OFFSETS,
-  STATION_RIM_GLOW_RADIUS,
   STATION_SCALE,
 } from "@/lib/station.config";
 
@@ -28,24 +22,6 @@ function makeGlowTexture() {
     gradient.addColorStop(0, "rgba(214,241,255,1)");
     gradient.addColorStop(0.18, "rgba(108,184,255,.75)");
     gradient.addColorStop(1, "rgba(108,184,255,0)");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 128, 128);
-  }
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  return texture;
-}
-
-function makeRedGlowTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const context = canvas.getContext("2d");
-  if (context) {
-    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, "rgba(255,245,245,1)");
-    gradient.addColorStop(0.16, "rgba(255,35,52,.9)");
-    gradient.addColorStop(1, "rgba(255,24,42,0)");
     context.fillStyle = gradient;
     context.fillRect(0, 0, 128, 128);
   }
@@ -84,19 +60,11 @@ function disposeScene(model: Group) {
 export function StationModel({
   preview = false,
   scale = STATION_SCALE,
-  antennaOffsets = STATION_ANTENNA_GLOW_OFFSETS,
-  rimRadius = STATION_RIM_GLOW_RADIUS,
-  rimHeight = STATION_RIM_GLOW_HEIGHT,
-  rimCount = STATION_RIM_GLOW_COUNT,
   onSlowFrame,
   onBounds,
 }: {
   preview?: boolean;
   scale?: number;
-  antennaOffsets?: readonly (readonly [number, number, number])[];
-  rimRadius?: number;
-  rimHeight?: number;
-  rimCount?: number;
   onSlowFrame?: () => void;
   onBounds?: (size: readonly [number, number, number]) => void;
 }) {
@@ -106,26 +74,12 @@ export function StationModel({
   const dockLight = useRef<PointLight>(null);
   const dockSprite = useRef<Group>(null);
   const dockBeamMaterial = useRef<MeshBasicMaterial>(null);
-  const antennaLight = useRef<PointLight>(null);
-  const antennaMaterial = useRef<MeshStandardMaterial>(null);
-  const antennaSprites = useRef<(SpriteMaterial | null)[]>([]);
-  const rimEmitters = useRef<InstancedMesh>(null);
-  const rimSprites = useRef<(SpriteMaterial | null)[]>([]);
   const frameWindow = useRef({ elapsed: 0, count: 0, slowWindows: 0, hidden: false });
   const monitorStartedAt = useRef(0);
   const previousFrame = useRef<{ position: Vector3; scale: Vector3; visible: boolean; opacity: number[] } | null>(null);
   const anomalyLogged = useRef(false);
   const normalizedModel = useRef<Group>(null);
   const glow = useMemo(makeGlowTexture, []);
-  const redGlow = useMemo(makeRedGlowTexture, []);
-  const rimOffsets = useMemo(
-    () => rimRadius === STATION_RIM_GLOW_RADIUS && rimHeight === STATION_RIM_GLOW_HEIGHT && rimCount === STATION_RIM_GLOW_COUNT
-      ? STATION_RIM_GLOW_OFFSETS
-      : getStationRimGlowOffsets(rimRadius, rimHeight, rimCount),
-    [rimCount, rimHeight, rimRadius],
-  );
-  const emitterTransform = useMemo(() => new Object3D(), []);
-  const emitterColor = useMemo(() => new Color(), []);
   const bounds = useMemo(() => new Box3().setFromObject(model), [model]);
   const center = useMemo(() => bounds.getCenter(new Vector3()), [bounds]);
   const size = useMemo(() => bounds.getSize(new Vector3()), [bounds]);
@@ -153,9 +107,8 @@ export function StationModel({
 
   useEffect(() => () => {
     glow.dispose();
-    redGlow.dispose();
     disposeScene(model);
-  }, [glow, model, redGlow]);
+  }, [glow, model]);
 
   useEffect(() => {
     normalizedModel.current?.updateWorldMatrix(true, true);
@@ -165,20 +118,6 @@ export function StationModel({
       object.geometry.computeBoundingSphere();
     });
   }, [model, normalizeScale]);
-
-  useEffect(() => {
-    const emitters = rimEmitters.current;
-    if (!emitters) return;
-    rimOffsets.forEach((offset, index) => {
-      emitterTransform.position.set(...offset);
-      emitterTransform.scale.setScalar(0.055);
-      emitterTransform.updateMatrix();
-      emitters.setMatrixAt(index, emitterTransform.matrix);
-      emitters.setColorAt(index, emitterColor.setRGB(0.24, 0.008, 0.02));
-    });
-    emitters.instanceMatrix.needsUpdate = true;
-    if (emitters.instanceColor) emitters.instanceColor.needsUpdate = true;
-  }, [emitterColor, emitterTransform, rimOffsets]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
@@ -242,21 +181,6 @@ export function StationModel({
     if (dockLight.current) dockLight.current.intensity = 0.65 + pulse * 0.7;
     if (dockSprite.current) dockSprite.current.scale.setScalar(0.86 + pulse * 0.22);
     if (dockBeamMaterial.current) dockBeamMaterial.current.opacity = 0.12 + pulse * 0.18;
-    if (antennaLight.current) antennaLight.current.intensity = 0.2 + pulse * 0.55;
-    if (antennaMaterial.current) antennaMaterial.current.emissiveIntensity = 1.8 + pulse * 2.2;
-    antennaSprites.current.forEach((sprite) => { if (sprite) sprite.opacity = 0.62 + pulse * 0.34; });
-    const emitterCount = rimOffsets.length;
-    if (rimEmitters.current) {
-      rimOffsets.forEach((_, index) => {
-        const phase = ((state.clock.elapsedTime * 0.32 - index / emitterCount) % 1 + 1) % 1;
-        const chase = Math.max(0, 1 - Math.abs(phase - 0.08) / 0.2);
-        const blink = Math.sin(state.clock.elapsedTime * 3.4 - index * 0.8) > -0.2 ? 1 : 0.16;
-        const brightness = 0.16 + chase * blink;
-        rimEmitters.current?.setColorAt(index, emitterColor.setRGB(0.25 + brightness * 4, 0.006 + brightness * 0.025, 0.012 + brightness * 0.045));
-        if (rimSprites.current[index]) rimSprites.current[index]!.opacity = 0.08 + chase * blink * 0.82;
-      });
-      if (rimEmitters.current.instanceColor) rimEmitters.current.instanceColor.needsUpdate = true;
-    }
   });
 
   return (
@@ -270,27 +194,6 @@ export function StationModel({
             <spriteMaterial map={glow} color={new Color("#6cb8ff")} transparent opacity={0.75} blending={AdditiveBlending} depthWrite={false} />
           </sprite>
         </group>
-      ))}
-      {antennaOffsets.map((offset, index) => (
-        <group key={`antenna-${index}`} position={offset as [number, number, number]}>
-          <mesh frustumCulled={false}>
-            <sphereGeometry args={[0.045, 16, 12]} />
-            <meshStandardMaterial ref={index === 0 ? antennaMaterial : undefined} color="#9c0d1c" emissive="#ff162b" emissiveIntensity={2.9} toneMapped={false} />
-          </mesh>
-          <sprite scale={[0.55, 0.55, 1]}>
-            <spriteMaterial ref={(material) => { antennaSprites.current[index] = material; }} map={redGlow} color={[4, 0.03, 0.06]} transparent opacity={0.8} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
-          </sprite>
-          {!preview && index === 0 && <pointLight ref={antennaLight} color="#ff2035" intensity={0.5} distance={2.1} decay={2} />}
-        </group>
-      ))}
-      <instancedMesh ref={rimEmitters} args={[undefined, undefined, rimOffsets.length]} frustumCulled={false}>
-        <sphereGeometry args={[1, 8, 6]} />
-        <meshBasicMaterial vertexColors toneMapped={false} />
-      </instancedMesh>
-      {rimOffsets.map((offset, index) => (
-        <sprite key={`rim-${index}`} position={offset as [number, number, number]} scale={[0.3, 0.3, 1]}>
-          <spriteMaterial ref={(material) => { rimSprites.current[index] = material; }} map={redGlow} color={[4, 0.025, 0.05]} transparent opacity={0.08} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
-        </sprite>
       ))}
       <group position={STATION_DOCK_LIGHT_OFFSET as [number, number, number]} ref={dockSprite}>
         <sprite scale={[0.22, 0.22, 1]}>
@@ -308,18 +211,10 @@ export function StationModel({
 
 export function StationPreviewObject({
   scale = STATION_SCALE,
-  antennaOffsets = STATION_ANTENNA_GLOW_OFFSETS,
-  rimRadius = STATION_RIM_GLOW_RADIUS,
-  rimHeight = STATION_RIM_GLOW_HEIGHT,
-  rimCount = STATION_RIM_GLOW_COUNT,
   onBounds,
 }: {
   scale?: number;
-  antennaOffsets?: readonly (readonly [number, number, number])[];
-  rimRadius?: number;
-  rimHeight?: number;
-  rimCount?: number;
   onBounds?: (size: readonly [number, number, number]) => void;
 }) {
-  return <StationModel preview scale={scale} antennaOffsets={antennaOffsets} rimRadius={rimRadius} rimHeight={rimHeight} rimCount={rimCount} onBounds={onBounds} />;
+  return <StationModel preview scale={scale} onBounds={onBounds} />;
 }

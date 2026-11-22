@@ -4,11 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
 import {
-  STATION_ANTENNA_GLOW_OFFSETS,
   STATION_BREAKPOINT_OVERRIDES,
-  STATION_RIM_GLOW_COUNT,
-  STATION_RIM_GLOW_HEIGHT,
-  STATION_RIM_GLOW_RADIUS,
   STATION_SCALE,
   type StationBreakpointName,
 } from "@/lib/station.config";
@@ -27,12 +23,6 @@ export default function StationPreviewPage() {
   const [bounds, setBounds] = useState<readonly [number, number, number] | null>(null);
   const [preset, setPreset] = useState<StationBreakpointName>("desktop");
   const [transform, setTransform] = useState(() => presetTransform("desktop"));
-  const [glowTuning, setGlowTuning] = useState(() => ({
-    antennaOffset: [...STATION_ANTENNA_GLOW_OFFSETS[0]] as [number, number, number],
-    rimRadius: STATION_RIM_GLOW_RADIUS,
-    rimHeight: STATION_RIM_GLOW_HEIGHT,
-    rimCount: STATION_RIM_GLOW_COUNT,
-  }));
   const setPosition = (index: number, value: number) => setTransform((current) => {
     const position: [number, number, number] = [...current.position];
     position[index] = value;
@@ -54,7 +44,7 @@ export default function StationPreviewPage() {
         <Link href="/">Return to portfolio</Link>
       </header>
       <section className="ship-preview__frame" aria-label="Interactive 3D station model preview">
-        <StationPreviewCanvas transform={transform} glowTuning={glowTuning} onBounds={setBounds} />
+        <StationPreviewCanvas transform={transform} onBounds={setBounds} />
       </section>
       <p className="station-preview__bounds">Loaded model bounds (X / Y / Z): {bounds ? bounds.map((value) => value.toFixed(2)).join(" / ") : "loading"}</p>
       <section className="station-preview__controls" aria-label="Station tuning controls">
@@ -81,29 +71,6 @@ export default function StationPreviewPage() {
             <input type="range" min="-180" max="180" step="1" value={transform.rotation[index] * 180 / Math.PI} onChange={(event) => setRotation(index, Number(event.target.value))} />
           </label>
         ))}
-        <h2>Red glow positions</h2>
-        {(["X", "Y", "Z"] as const).map((axis, index) => (
-          <label className="station-preview__slider" key={`antenna-${axis}`}>
-            <span>Antenna {axis} <output>{glowTuning.antennaOffset[index].toFixed(2)}</output></span>
-            <input type="range" min={index === 1 ? "0.1" : "-1.5"} max={index === 1 ? "1.2" : "1.5"} step="0.01" value={glowTuning.antennaOffset[index]} onChange={(event) => setGlowTuning((current) => {
-              const antennaOffset: [number, number, number] = [...current.antennaOffset];
-              antennaOffset[index] = Number(event.target.value);
-              return { ...current, antennaOffset };
-            })} />
-          </label>
-        ))}
-        <label className="station-preview__slider">
-          <span>Rim radius <output>{glowTuning.rimRadius.toFixed(2)}</output></span>
-          <input type="range" min="1.6" max="2.5" step="0.01" value={glowTuning.rimRadius} onChange={(event) => setGlowTuning((current) => ({ ...current, rimRadius: Number(event.target.value) }))} />
-        </label>
-        <label className="station-preview__slider">
-          <span>Rim height <output>{glowTuning.rimHeight.toFixed(2)}</output></span>
-          <input type="range" min="-0.4" max="0.5" step="0.01" value={glowTuning.rimHeight} onChange={(event) => setGlowTuning((current) => ({ ...current, rimHeight: Number(event.target.value) }))} />
-        </label>
-        <label className="station-preview__slider">
-          <span>Rim emitters <output>{glowTuning.rimCount}</output></span>
-          <input type="range" min="4" max="32" step="1" value={glowTuning.rimCount} onChange={(event) => setGlowTuning((current) => ({ ...current, rimCount: Number(event.target.value) }))} />
-        </label>
       </section>
       <section className="ship-preview__facts" aria-labelledby="station-facts-heading">
         <h2 id="station-facts-heading">Model notes</h2>

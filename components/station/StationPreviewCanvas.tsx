@@ -15,14 +15,7 @@ type PreviewTransform = {
   rotation: readonly [number, number, number];
 };
 
-type GlowTuning = {
-  antennaOffset: [number, number, number];
-  rimRadius: number;
-  rimHeight: number;
-  rimCount: number;
-};
-
-function PreviewScene({ transform, glowTuning, onBounds }: { transform: PreviewTransform; glowTuning: GlowTuning; onBounds: (size: readonly [number, number, number]) => void }) {
+function PreviewScene({ transform, onBounds }: { transform: PreviewTransform; onBounds: (size: readonly [number, number, number]) => void }) {
   const [bloomEnabled, setBloomEnabled] = useState(false);
   const station = useRef<Group>(null);
   const viewport = useThree((state) => state.viewport);
@@ -49,7 +42,7 @@ function PreviewScene({ transform, glowTuning, onBounds }: { transform: PreviewT
       <Suspense fallback={null}>
         <group ref={station} rotation={transform.rotation as [number, number, number]}>
           <axesHelper args={[1.2]} position={[-3, 0, 0]} />
-          <StationPreviewObject scale={transform.scale} antennaOffsets={[glowTuning.antennaOffset]} rimRadius={glowTuning.rimRadius} rimHeight={glowTuning.rimHeight} rimCount={glowTuning.rimCount} onBounds={onBounds} />
+          <StationPreviewObject scale={transform.scale} onBounds={onBounds} />
           <mesh position={DOCK_POINT as [number, number, number]}>
             <sphereGeometry args={[0.055, 16, 12]} />
             <meshBasicMaterial color="#ffb44b" />
@@ -66,6 +59,6 @@ function PreviewScene({ transform, glowTuning, onBounds }: { transform: PreviewT
   );
 }
 
-export default function StationPreviewCanvas({ transform, glowTuning, onBounds }: { transform: PreviewTransform; glowTuning: GlowTuning; onBounds: (size: readonly [number, number, number]) => void }) {
-  return <Canvas camera={{ position: [3.8, 2.9, 4.8], fov: 42, near: 0.1, far: 100 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}><PreviewScene transform={transform} glowTuning={glowTuning} onBounds={onBounds} /></Canvas>;
+export default function StationPreviewCanvas({ transform, onBounds }: { transform: PreviewTransform; onBounds: (size: readonly [number, number, number]) => void }) {
+  return <Canvas camera={{ position: [3.8, 2.9, 4.8], fov: 42, near: 0.1, far: 100 }} dpr={[1, 1.5]} gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}><PreviewScene transform={transform} onBounds={onBounds} /></Canvas>;
 }
