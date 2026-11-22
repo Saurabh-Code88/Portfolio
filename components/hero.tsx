@@ -1,8 +1,11 @@
 "use client";
 
-import { profile } from "@/content/profile";
+import { profile, profileContactLinks } from "@/content/profile";
+import { heroCopy, heroProofPoints, heroStations } from "@/content/hero";
 
 export function Hero() {
+  const resumeLink = profileContactLinks.find(({ download }) => download);
+
   return (
     <section className="hero-page" aria-labelledby="hero-heading" data-flight-section="hero">
       <div className="hero">
@@ -30,7 +33,28 @@ export function Hero() {
             </p>
             <h1 id="hero-heading">{profile.headline}</h1>
             <p className="hero-subline">{profile.subline}</p>
-            <div className="hero-ask-space" aria-hidden="true" />
+            <div className="hero-actions">
+              <a className="hero-action hero-action--primary" href="#projects">{heroCopy.viewProjectsLabel}</a>
+              {resumeLink && (
+                <a className="hero-action hero-action--outlined" href={resumeLink.href} download>
+                  {heroCopy.downloadResumeLabel}
+                </a>
+              )}
+            </div>
+            <ul className="hero-proof-points" aria-label={heroCopy.proofPointsLabel}>
+              {heroProofPoints.map((point) => (
+                <li key={point.label}>
+                  <span>{point.label}</span>
+                  <strong>{point.value}</strong>
+                </li>
+              ))}
+            </ul>
+            <nav className="hero-stations" aria-label={heroCopy.flyToLabel}>
+              <span className="hero-stations__label">{heroCopy.flyToLabel}</span>
+              {heroStations.map((station) => (
+                <a key={station.href} href={station.href}>{station.label}</a>
+              ))}
+            </nav>
           </div>
         </div>
       </div>

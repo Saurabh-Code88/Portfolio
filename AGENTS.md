@@ -8,7 +8,7 @@ Audience: hiring managers and engineers skimming for 60 seconds. Primary job of 
 ## Hard rules
 1. **Original space assets only.** Do not use film, game, or third-party character art, logos, or quotes. Build artwork with original SVG and CSS (stars, orbit rings, simple spacecraft, and interface marks).
 2. **Keep content in the DOM.** Headings, copy, controls, and interactive content must remain semantic HTML and accessible when decorative artwork is disabled.
-3. **3D canvas is a background layer.** If added in a later phase, keep it behind DOM content, decorative, non-interactive, and performance/accessibility safe. No 3D is implemented yet.
+3. **3D canvas is a background layer.** Keep it behind DOM content, decorative, non-interactive, and performance/accessibility safe.
 4. **No fabricated numbers.** Metrics come only from `content/projects.ts`. If a value is `null`, render nothing or a "Demo coming soon" state. Never invent stats.
 5. **Placeholders for live links.** `liveUrl: null` renders a disabled "Demo coming soon" button, not a broken link.
 6. **Secrets stay server-side.** Never expose secrets to the client. Commit `.env.example` only.
@@ -42,8 +42,8 @@ Type:
 - Body line length under 75 characters; headings get generous line-height
 
 ## Design principles
-- The hero uses a subtle two-layer starfield behind the positioning line. A reserved space below the copy is available for the next hero redesign.
-- Any future 3D canvas is decorative background artwork. Keep all content, controls, and readable information in the DOM above it.
+- The hero uses a subtle two-layer starfield, a ship on the right, clear calls to action, content-sourced proof points, and a "Fly to" station bar. Keep a soft left scrim behind text.
+- The 3D canvas is decorative background artwork. Keep all content, controls, and readable information in the DOM above it. Station links follow the scroll flight; reduced-motion users jump directly to each section.
 - Sections use consistent panel spacing and radius. Avoid gradient washes and identical-card grids for everything.
 - Project pages show **architecture first** (a diagram), then the problem, then the result. Numbers appear as plain text with a label, not oversized stat blocks.
 - Numbered markers only where order is real (e.g. GhostApply pipeline stages).
@@ -72,7 +72,7 @@ Files: `content/profile.ts`, `content/projects.ts`, `content/experience.ts`, `co
 
 ## Site structure
 Current homepage order:
-1. Hero (starfield and positioning line)
+1. Hero (starfield, ship, positioning line, calls to action, station links)
 2. Toolkit
 3. Projects (support agent, GhostApply, Kritique, CollabCode, URL shortener, in that order)
 4. Research (QENN paper)
