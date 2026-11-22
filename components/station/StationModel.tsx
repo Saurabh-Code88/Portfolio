@@ -51,7 +51,7 @@ function disposeScene(model: Group) {
   });
 }
 
-export function StationModel({ preview = false, onSlowFrame, onBounds }: { preview?: boolean; onSlowFrame?: () => void; onBounds?: (size: readonly [number, number, number]) => void }) {
+export function StationModel({ preview = false, scale = STATION_SCALE, onSlowFrame, onBounds }: { preview?: boolean; scale?: number; onSlowFrame?: () => void; onBounds?: (size: readonly [number, number, number]) => void }) {
   const { scene } = useGLTF("/models/station.glb");
   const model = useMemo(() => cloneTexturedScene(scene), [scene]);
   const group = useRef<Group>(null);
@@ -63,7 +63,7 @@ export function StationModel({ preview = false, onSlowFrame, onBounds }: { previ
   const bounds = useMemo(() => new Box3().setFromObject(model), [model]);
   const center = useMemo(() => bounds.getCenter(new Vector3()), [bounds]);
   const size = useMemo(() => bounds.getSize(new Vector3()), [bounds]);
-  const normalizeScale = STATION_DIAMETER / Math.max(size.x, size.z, 0.001) * STATION_SCALE;
+  const normalizeScale = STATION_DIAMETER / Math.max(size.x, size.z, 0.001) * scale;
 
   useEffect(() => {
     if (preview) onBounds?.([size.x, size.y, size.z]);
@@ -119,6 +119,6 @@ export function StationModel({ preview = false, onSlowFrame, onBounds }: { previ
   );
 }
 
-export function StationPreviewObject({ onBounds }: { onBounds?: (size: readonly [number, number, number]) => void }) {
-  return <StationModel preview onBounds={onBounds} />;
+export function StationPreviewObject({ scale = STATION_SCALE, onBounds }: { scale?: number; onBounds?: (size: readonly [number, number, number]) => void }) {
+  return <StationModel preview scale={scale} onBounds={onBounds} />;
 }

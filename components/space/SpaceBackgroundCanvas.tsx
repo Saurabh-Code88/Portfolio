@@ -25,7 +25,14 @@ import {
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
 } from "@/lib/ship.config";
-import { DOCK_POINT, STATION_POSITION, STATION_ROTATION } from "@/lib/station.config";
+import {
+  DOCK_HOVER_HEIGHT,
+  STATION_BREAKPOINT_OVERRIDES,
+  STATION_DIAMETER,
+  STATION_HEIGHT_RATIO,
+  STATION_SCALE,
+  STATION_YAW_DRIFT,
+} from "@/lib/station.config";
 
 function HyperspaceStreaks({ ready, warp }: { ready: MutableRefObject<boolean>; warp: MutableRefObject<number> }) {
   const bootIntensity = useRef(1);
@@ -106,7 +113,10 @@ function FlightShip({
   const cameraLookAt = useMemo(() => new Vector3(), []);
   const shipTarget = useMemo(() => new Vector3(), []);
   const dockedPosition = useMemo(() => new Vector3(), []);
-  const dockOffset = useMemo(() => new Vector3(...DOCK_POINT).applyEuler(new Euler(...STATION_ROTATION)), []);
+  const stationPosition = useMemo(() => new Vector3(), []);
+  const dockLocal = useMemo(() => new Vector3(), []);
+  const dockOffset = useMemo(() => new Vector3(), []);
+  const stationEuler = useMemo(() => new Euler(), []);
   const freePosition = useMemo(() => new Vector3(), []);
   const dockingPulse = useRef<Group>(null);
 
@@ -187,12 +197,43 @@ function FlightShip({
       // ── Hero parking position with idle bob ──
       const heroAspectScale = state.viewport.aspect / 1.6;
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
-      const stationX = STATION_POSITION[0] * heroAspectScale;
-      const stationY = STATION_POSITION[1];
+      const stationPreset = state.size.width >= STATION_BREAKPOINT_OVERRIDES.desktop.minWidth
+        ? STATION_BREAKPOINT_OVERRIDES.desktop
+        : STATION_BREAKPOINT_OVERRIDES.tablet;
+      const fitCamera = state.camera as PerspectiveCamera;
+      const cameraDistance = Math.max(0.1, fitCamera.position.z - stationPreset.position[2]);
+      const frustumHeight = 2 * cameraDistance * Math.tan(fitCamera.fov * Math.PI / 360);
+      const frustumWidth = frustumHeight * state.viewport.aspect;
+      const desiredWidth = Math.min(
+        frustumWidth * stationPreset.widthFraction * STATION_SCALE * stationPreset.scale,
+        frustumWidth * 0.47,
+      );
+      const stationWorldScale = desiredWidth / (STATION_DIAMETER * STATION_SCALE);
+      const horizontalRadius = desiredWidth / 2;
+      const margin = frustumWidth * 0.005;
+      const stationX = MathUtils.clamp(
+        frustumWidth * stationPreset.position[0],
+        horizontalRadius + margin,
+        frustumWidth / 2 - horizontalRadius - margin,
+      );
+      const stationHeight = desiredWidth * STATION_HEIGHT_RATIO;
+      const stationY = MathUtils.clamp(
+        frustumHeight * stationPreset.position[1],
+        -frustumHeight / 2 + stationHeight / 2 + margin,
+        frustumHeight / 2 - stationHeight / 2 - margin,
+      );
+      stationPosition.set(stationX, stationY, stationPreset.position[2]);
+      dockLocal.set(...stationPreset.dockPoint);
+      stationEuler.set(
+        stationPreset.rotation[0],
+        stationPreset.rotation[1] + state.clock.elapsedTime * STATION_YAW_DRIFT,
+        stationPreset.rotation[2],
+      );
+      dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
       dockedPosition.set(
-        stationX + dockOffset.x,
-        stationY + dockOffset.y + 1.65 * heroAspectScale + bobY * 0.35,
-        STATION_POSITION[2] + dockOffset.z,
+        stationPosition.x + dockOffset.x,
+        stationPosition.y + dockOffset.y + DOCK_HOVER_HEIGHT + bobY * 0.35,
+        stationPosition.z + dockOffset.z,
       );
       freePosition.set(
         HERO_SHIP_POSITION[0] * heroAspectScale + pointer.current.x * -0.06,
@@ -202,15 +243,15 @@ function FlightShip({
       shipTarget.lerpVectors(dockedPosition, freePosition, heroBlend);
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
       const heroScale = MathUtils.lerp(1, HERO_SHIP_SCALE * heroAspectScale, 1 - heroBlend);
-      const dockScale = Math.min(1.65 * heroAspectScale, HERO_SHIP_SCALE * heroAspectScale);
+      const dockScale = Math.min(DOCK_HOVER_HEIGHT, HERO_SHIP_SCALE * heroAspectScale);
       const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
       group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
 
       if (stationGroup.current) {
         stationGroup.current.visible = heroBlend < 0.995;
-        stationGroup.current.position.set(stationX + heroBlend * 1.6, stationY + heroBlend * 3.2, STATION_POSITION[2]);
-        stationGroup.current.rotation.set(STATION_ROTATION[0], STATION_ROTATION[1] + state.clock.elapsedTime * 0.00012, STATION_ROTATION[2]);
-        stationGroup.current.scale.setScalar(MathUtils.lerp(1, 0.86, heroBlend));
+        stationGroup.current.position.set(stationX + heroBlend * 1.6, stationY + heroBlend * 3.2, stationPreset.position[2]);
+        stationGroup.current.rotation.copy(stationEuler);
+        stationGroup.current.scale.setScalar(stationWorldScale * MathUtils.lerp(1, 0.86, heroBlend));
       }
 
       // Three-quarter view orientation + pointer tilt
@@ -300,7 +341,7 @@ function FlightShip({
 
   return (
     <>
-      <group ref={stationGroup} position={STATION_POSITION as [number, number, number]} rotation={STATION_ROTATION as [number, number, number]}>
+      <group ref={stationGroup}>
         {stationReady && stationEnabled && <Suspense fallback={null}><StationModel onSlowFrame={() => setStationEnabled(false)} /></Suspense>}
       </group>
       <group ref={group}>
