@@ -12,3 +12,4 @@ pnpm-debug.log*
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+assets-src/station*.glb

@@ -1,34 +1,22 @@
-import { askCopy } from "../content/ask.ts";
 import { certifications, education, experience } from "../content/experience.ts";
 import { projects } from "../content/projects.ts";
 import { research } from "../content/research.ts";
-import { ASK_LIMITS } from "./ask-config.ts";
-import { buildGroqMessages } from "./groq-provider.ts";
-import { hashClientIp } from "./rate-limit.ts";
-import type { RateLimiter } from "./rate-limit.ts";
-import type { AnswerProvider } from "./answer-provider.ts";
-import type { Retriever } from "./retriever.ts";
 
 type JsonRpcRequest = { jsonrpc?: unknown; id?: string | number | null; method?: unknown; params?: unknown };
-type McpRuntime = { retriever: Retriever; provider: AnswerProvider; rateLimiter: RateLimiter };
+const MAX_REQUEST_BYTES = 8 * 1024;
 
 const tools = [
   { name: "get_projects", description: "List Saurabh's portfolio projects.", inputSchema: { type: "object", additionalProperties: false, properties: {} } },
   { name: "get_project", description: "Get one project by its slug.", inputSchema: { type: "object", properties: { slug: { type: "string", description: "Project slug, such as ghostapply." } }, required: ["slug"], additionalProperties: false } },
   { name: "get_experience", description: "Get work experience, education, and certifications.", inputSchema: { type: "object", additionalProperties: false, properties: {} } },
   { name: "get_research", description: "Get research and publication details.", inputSchema: { type: "object", additionalProperties: false, properties: {} } },
-  { name: "ask_saurabh", description: "Ask a question answered only from the portfolio content.", inputSchema: { type: "object", properties: { question: { type: "string", description: "A question about Saurabh's portfolio." } }, required: ["question"], additionalProperties: false } },
 ] as const;
 
 const rpc = (id: string | number | null | undefined, result: unknown) => Response.json({ jsonrpc: "2.0", id, result }, { headers: { "Cache-Control": "no-store" } });
 const rpcError = (id: string | number | null | undefined, code: number, message: string, status = 200) => Response.json({ jsonrpc: "2.0", id, error: { code, message } }, { status, headers: { "Cache-Control": "no-store" } });
 const toolResult = (value: unknown, isError = false) => ({ content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }], isError });
 
-function getClientIp(request: Request) {
-  return request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-}
-
-export function createMcpHandler(runtime: McpRuntime) {
+export function createMcpHandler() {
   return async function POST(request: Request): Promise<Response> {
     const origin = request.headers.get("origin");
     if (origin && origin !== new URL(request.url).origin) return new Response("Forbidden", { status: 403 });
@@ -46,7 +34,7 @@ export function createMcpHandler(runtime: McpRuntime) {
         const { value, done } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > ASK_LIMITS.bodyBytes) {
+        if (size > MAX_REQUEST_BYTES) {
           await reader.cancel();
           return new Response("Request body is too large", { status: 413 });
         }
@@ -86,7 +74,7 @@ export function createMcpHandler(runtime: McpRuntime) {
         protocolVersion: protocolVersion ?? "2025-11-25",
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "saurabh-portfolio", version: "1.0.0" },
-        instructions: "Read-only portfolio tools for Saurabh Pramanik. ask_saurabh answers only from portfolio content.",
+        instructions: "Read-only portfolio tools for Saurabh Pramanik.",
       });
     }
     if (message.method === "ping") return rpc(id, {});
@@ -106,24 +94,6 @@ export function createMcpHandler(runtime: McpRuntime) {
     }
     if (name === "get_experience") return rpc(id, toolResult({ experience, education, certifications }));
     if (name === "get_research") return rpc(id, toolResult(research));
-    if (name === "ask_saurabh") {
-      const question = input.question;
-      if (typeof question !== "string" || !question.trim()) return rpc(id, toolResult(askCopy.missingQuestion, true));
-      if (question.length > ASK_LIMITS.inputCharacters) return rpc(id, toolResult(askCopy.tooLong, true));
-      let limit: Awaited<ReturnType<RateLimiter["limit"]>>;
-      try { limit = await runtime.rateLimiter.limit(hashClientIp(getClientIp(request))); }
-      catch { return rpc(id, toolResult(askCopy.serviceUnavailable, true)); }
-      if (!limit.allowed) return rpc(id, toolResult(askCopy.rateLimited, true));
-      const chunks = runtime.retriever.retrieve(question, ASK_LIMITS.topK);
-      if (!chunks.length) return rpc(id, toolResult(askCopy.fallback));
-      try {
-        let answer = "";
-        for await (const token of runtime.provider.stream(buildGroqMessages(question, chunks), ASK_LIMITS.outputTokens, request.signal)) answer += token;
-        return rpc(id, toolResult(answer || askCopy.fallback));
-      } catch {
-        return rpc(id, toolResult(askCopy.serviceUnavailable, true));
-      }
-    }
     return rpc(id, toolResult(`Unknown tool '${name}'.`, true));
   };
 }
