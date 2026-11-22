@@ -278,6 +278,18 @@ pre {
   pointer-events: none;
 }
 
+html.model-grab-hover,
+html.model-grab-hover *,
+html.model-grab-active,
+html.model-grab-active * {
+  cursor: grab !important;
+}
+
+html.model-grab-active,
+html.model-grab-active * {
+  cursor: grabbing !important;
+}
+
 .space-background--active ~ .hero-page .hero-starfield { display: none; }
 
 /* Left-side dark scrim behind text column for AA contrast; right half stays clear for the ship. */

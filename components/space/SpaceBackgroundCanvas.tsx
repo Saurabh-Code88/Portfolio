@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, Sparkles, Stars } from "@react-three/drei";
 import type { MotionValue } from "framer-motion";
 import {
@@ -13,6 +13,8 @@ import {
   MathUtils,
   PerspectiveCamera,
   Quaternion,
+  Raycaster,
+  Vector2,
   Vector3,
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
@@ -32,6 +34,24 @@ import {
   STATION_SCALE,
   STATION_YAW_DRIFT,
 } from "@/lib/station.config";
+import {
+  MODEL_DRAG_SENSITIVITY,
+  MODEL_ROTATION_IDLE_RESET_SECONDS,
+  MODEL_ROTATION_INERTIA_DAMPING,
+} from "@/lib/rotation.config";
+
+type ModelKey = "ship" | "station";
+type RotationMotion = {
+  pointerId: number | null;
+  previous: { x: number; y: number; time: number } | null;
+  velocity: Vector3;
+  lastInteraction: number;
+  moved: boolean;
+};
+
+function createRotationMotion(): RotationMotion {
+  return { pointerId: null, previous: null, velocity: new Vector3(), lastInteraction: 0, moved: false };
+}
 
 function HyperspaceStreaks({ ready, warp }: { ready: MutableRefObject<boolean>; warp: MutableRefObject<number> }) {
   const bootIntensity = useRef(1);
@@ -89,7 +109,11 @@ function FlightShip({
   warp: MutableRefObject<number>;
 }) {
   const group = useRef<Group>(null);
+  const shipUserGroup = useRef<Group>(null);
   const stationGroup = useRef<Group>(null);
+  const stationUserGroup = useRef<Group>(null);
+  const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
   const [stationReady, setStationReady] = useState(false);
   const [stationEnabled, setStationEnabled] = useState(true);
   const trail = useRef<Group>(null);
@@ -100,6 +124,18 @@ function FlightShip({
   const progressInitialized = useRef(false);
   const navFlight = useRef<{ from: number; to: number; startedAt: number; duration: number } | null>(null);
   const expectedScroll = useRef<number | null>(null);
+  const rotationMotion = useRef<Record<ModelKey, RotationMotion>>({ ship: createRotationMotion(), station: createRotationMotion() });
+  const suppressNextClick = useRef(false);
+  const raycaster = useMemo(() => new Raycaster(), []);
+  const normalizedPointer = useMemo(() => new Vector2(), []);
+  const rotationAxisX = useMemo(() => new Vector3(1, 0, 0), []);
+  const rotationAxisY = useMemo(() => new Vector3(0, 1, 0), []);
+  const dragYaw = useMemo(() => new Quaternion(), []);
+  const dragPitch = useMemo(() => new Quaternion(), []);
+  const dragDelta = useMemo(() => new Quaternion(), []);
+  const inertiaAxis = useMemo(() => new Vector3(), []);
+  const inertiaDelta = useMemo(() => new Quaternion(), []);
+  const identityRotation = useMemo(() => new Quaternion(), []);
   const enginePower = useRef(1);
   const stops = useRef(FLIGHT_SECTION_IDS.map((_, index) => index / (FLIGHT_SECTION_IDS.length - 1)));
   const orientation = useMemo(() => new Quaternion(), []);
@@ -126,6 +162,121 @@ function FlightShip({
   const heroQuat = useMemo(() => new Quaternion(), []);
   const dockQuat = useMemo(() => new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0)), []);
   const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
+
+  useEffect(() => {
+    const roots = (): { key: ModelKey; root: Group }[] => [
+      ...(shipUserGroup.current ? [{ key: "ship" as const, root: shipUserGroup.current }] : []),
+      ...(stationUserGroup.current ? [{ key: "station" as const, root: stationUserGroup.current }] : []),
+    ];
+    const hitModel = (event: PointerEvent): ModelKey | null => {
+      const bounds = gl.domElement.getBoundingClientRect();
+      if (!bounds.width || !bounds.height || event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return null;
+      normalizedPointer.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
+      );
+      camera.updateMatrixWorld();
+      raycaster.setFromCamera(normalizedPointer, camera);
+      for (const { key, root } of roots()) {
+        if (!root.visible || (key === "station" && !stationGroup.current?.visible)) continue;
+        root.updateWorldMatrix(true, true);
+        if (raycaster.intersectObject(root, true).length > 0) return key;
+      }
+      return null;
+    };
+    const setCursor = (cursor: "" | "model-grab-hover" | "model-grab-active") => {
+      document.documentElement.classList.remove("model-grab-hover", "model-grab-active");
+      if (cursor) document.documentElement.classList.add(cursor);
+    };
+    const isUiTarget = (target: EventTarget | null) => target instanceof Element
+      && Boolean(target.closest("a, button:not(.hero-ship-trigger), input, textarea, select, [role='button']"));
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      const states = rotationMotion.current;
+      const draggingKey = (Object.keys(states) as ModelKey[]).find((key) => states[key].pointerId === event.pointerId);
+      if (draggingKey) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const motion = states[draggingKey];
+        const previous = motion.previous;
+        if (!previous) return;
+        const now = performance.now();
+        const dx = event.clientX - previous.x;
+        const dy = event.clientY - previous.y;
+        if (Math.hypot(dx, dy) > 0.25) motion.moved = true;
+        const dt = Math.max(0.008, (now - previous.time) / 1000);
+        const userGroup = draggingKey === "ship" ? shipUserGroup.current : stationUserGroup.current;
+        if (userGroup) {
+          dragYaw.setFromAxisAngle(rotationAxisY, dx * MODEL_DRAG_SENSITIVITY);
+          dragPitch.setFromAxisAngle(rotationAxisX, dy * MODEL_DRAG_SENSITIVITY);
+          dragDelta.copy(dragYaw).multiply(dragPitch);
+          userGroup.quaternion.multiply(dragDelta).normalize();
+        }
+        motion.velocity.set(dy * MODEL_DRAG_SENSITIVITY / dt, dx * MODEL_DRAG_SENSITIVITY / dt, 0);
+        motion.previous = { x: event.clientX, y: event.clientY, time: now };
+        motion.lastInteraction = now;
+        setCursor("model-grab-active");
+        return;
+      }
+      if (isUiTarget(event.target)) {
+        setCursor("");
+        return;
+      }
+      setCursor(hitModel(event) ? "model-grab-hover" : "");
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType === "touch" || event.button !== 0 || isUiTarget(event.target)) return;
+      const key = hitModel(event);
+      if (!key) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const now = performance.now();
+      const motion = rotationMotion.current[key];
+      motion.pointerId = event.pointerId;
+      motion.previous = { x: event.clientX, y: event.clientY, time: now };
+      motion.velocity.set(0, 0, 0);
+      motion.lastInteraction = now;
+      motion.moved = false;
+      setCursor("model-grab-active");
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      const motion = (Object.keys(rotationMotion.current) as ModelKey[])
+        .map((key) => rotationMotion.current[key])
+        .find((state) => state.pointerId === event.pointerId);
+      if (!motion) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressNextClick.current = motion.moved;
+      if (motion.moved) window.setTimeout(() => { suppressNextClick.current = false; }, 500);
+      motion.pointerId = null;
+      motion.previous = null;
+      motion.lastInteraction = performance.now();
+      setCursor("");
+    };
+    const onPointerCancel = (event: PointerEvent) => {
+      onPointerUp(event);
+      suppressNextClick.current = false;
+    };
+    const onClick = (event: MouseEvent) => {
+      if (!suppressNextClick.current) return;
+      suppressNextClick.current = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    window.addEventListener("pointermove", onPointerMove, { capture: true, passive: false });
+    window.addEventListener("pointerdown", onPointerDown, { capture: true, passive: false });
+    window.addEventListener("pointerup", onPointerUp, { capture: true, passive: false });
+    window.addEventListener("pointercancel", onPointerCancel, { capture: true, passive: false });
+    window.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove, true);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("pointerup", onPointerUp, true);
+      window.removeEventListener("pointercancel", onPointerCancel, true);
+      window.removeEventListener("click", onClick, true);
+      setCursor("");
+    };
+  }, [camera, dragDelta, dragPitch, dragYaw, gl, normalizedPointer, raycaster, rotationAxisX, rotationAxisY]);
 
   useEffect(() => {
     const updateStops = () => {
@@ -214,6 +365,28 @@ function FlightShip({
 
   useFrame((state, delta) => {
     if (!group.current) return;
+    const now = performance.now();
+    const interactiveRoots: Record<ModelKey, Group | null> = {
+      ship: shipUserGroup.current,
+      station: stationUserGroup.current,
+    };
+    for (const key of ["ship", "station"] as const) {
+      const motion = rotationMotion.current[key];
+      const root = interactiveRoots[key];
+      if (!root || motion.pointerId !== null) continue;
+      const speed = motion.velocity.length();
+      if (speed > 0.01) {
+        inertiaAxis.copy(motion.velocity).normalize();
+        inertiaDelta.setFromAxisAngle(inertiaAxis, speed * delta);
+        root.quaternion.multiply(inertiaDelta).normalize();
+        motion.velocity.multiplyScalar(Math.exp(-MODEL_ROTATION_INERTIA_DAMPING * delta));
+      } else {
+        motion.velocity.set(0, 0, 0);
+      }
+      if (now - motion.lastInteraction >= MODEL_ROTATION_IDLE_RESET_SECONDS * 1000) {
+        root.quaternion.slerp(identityRotation, 1 - Math.exp(-delta * 2.2));
+      }
+    }
     if (!progressInitialized.current) {
       displayedProgress.current = progress.get();
       progressInitialized.current = true;
@@ -398,21 +571,25 @@ function FlightShip({
   return (
     <>
       <group ref={stationGroup}>
-        {stationReady && stationEnabled && <Suspense fallback={null}><StationModel onSlowFrame={() => setStationEnabled(false)} /></Suspense>}
+        <group ref={stationUserGroup}>
+          {stationReady && stationEnabled && <Suspense fallback={null}><StationModel onSlowFrame={() => setStationEnabled(false)} /></Suspense>}
+        </group>
       </group>
       <group ref={group}>
-        <Suspense fallback={null}>
-          <ShipModel labels={false} onLoad={modelLoaded} enginePower={enginePower} />
-        </Suspense>
-        <group ref={dockingPulse} position={[0, 0, -0.62]}>
-          <pointLight color="#6cb8ff" intensity={0.5} distance={1.1} decay={2} />
-          <mesh>
-            <sphereGeometry args={[0.035, 12, 10]} />
-            <meshBasicMaterial color="#d9f2ff" />
-          </mesh>
-        </group>
-        <group ref={trail} position={[0, 0, -0.5]} visible={false}>
-          <Sparkles count={24} scale={[0.35, 0.35, 0.9]} size={2} speed={0.55} color="#6cb8ff" opacity={0.82} />
+        <group ref={shipUserGroup}>
+          <Suspense fallback={null}>
+            <ShipModel labels={false} onLoad={modelLoaded} enginePower={enginePower} />
+          </Suspense>
+          <group ref={dockingPulse} position={[0, 0, -0.62]}>
+            <pointLight color="#6cb8ff" intensity={0.5} distance={1.1} decay={2} />
+            <mesh>
+              <sphereGeometry args={[0.035, 12, 10]} />
+              <meshBasicMaterial color="#d9f2ff" />
+            </mesh>
+          </group>
+          <group ref={trail} position={[0, 0, -0.5]} visible={false}>
+            <Sparkles count={24} scale={[0.35, 0.35, 0.9]} size={2} speed={0.55} color="#6cb8ff" opacity={0.82} />
+          </group>
         </group>
       </group>
     </>
