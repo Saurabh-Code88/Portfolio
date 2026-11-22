@@ -37,8 +37,4 @@ export const STATION_BREAKPOINT_OVERRIDES: Record<StationBreakpointName, Station
   },
 };
 
-export const STATION_POD_GLOW_OFFSETS: readonly (readonly [number, number, number])[] = [
-  [-0.78, 0.08, 0],
-  [0.78, 0.08, 0],
-];
 export const STATION_DOCK_LIGHT_OFFSET: readonly [number, number, number] = [0, 0.28, 0];

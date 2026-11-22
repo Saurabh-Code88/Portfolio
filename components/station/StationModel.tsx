@@ -3,12 +3,11 @@
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, Box3, CanvasTexture, Color, Group, Material, Mesh, MeshBasicMaterial, Object3D, PointLight, SRGBColorSpace, Texture, Vector3 } from "three";
+import { AdditiveBlending, Box3, CanvasTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D, PointLight, SRGBColorSpace, Texture, Vector3 } from "three";
 import {
   DOCK_POINT,
   STATION_DIAMETER,
   STATION_DOCK_LIGHT_OFFSET,
-  STATION_POD_GLOW_OFFSETS,
   STATION_SCALE,
 } from "@/lib/station.config";
 
@@ -188,13 +187,6 @@ export function StationModel({
       <group ref={normalizedModel} scale={normalizeScale}>
         <primitive object={model} position={[-center.x, -center.y, -center.z]} dispose={null} />
       </group>
-      {STATION_POD_GLOW_OFFSETS.map((offset, index) => (
-        <group key={index} position={offset as [number, number, number]}>
-          <sprite scale={[0.34, 0.34, 1]}>
-            <spriteMaterial map={glow} color={new Color("#6cb8ff")} transparent opacity={0.75} blending={AdditiveBlending} depthWrite={false} />
-          </sprite>
-        </group>
-      ))}
       <group position={STATION_DOCK_LIGHT_OFFSET as [number, number, number]} ref={dockSprite}>
         <sprite scale={[0.22, 0.22, 1]}>
           <spriteMaterial map={glow} color="#d7efff" transparent opacity={0.9} blending={AdditiveBlending} depthWrite={false} />
