@@ -17,6 +17,12 @@ import {
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
 import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "@/lib/flightPath";
+import {
+  HERO_SHIP_POSITION,
+  HERO_SHIP_ROTATION,
+  HERO_BOB_AMPLITUDE,
+  HERO_BOB_SPEED,
+} from "@/lib/ship.config";
 
 function HyperspaceStreaks({ ready, warp }: { ready: MutableRefObject<boolean>; warp: MutableRefObject<number> }) {
   const bootIntensity = useRef(1);
@@ -93,6 +99,14 @@ function FlightShip({
   const cameraTarget = useMemo(() => new Vector3(), []);
   const cameraLookAt = useMemo(() => new Vector3(), []);
   const shipTarget = useMemo(() => new Vector3(), []);
+
+  // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
+  const heroQuat = useMemo(() => {
+    const q = new Quaternion();
+    const e = new Euler(HERO_SHIP_ROTATION[0], HERO_SHIP_ROTATION[1], HERO_SHIP_ROTATION[2]);
+    q.setFromEuler(e);
+    return q;
+  }, []);
   const modelLoaded = useCallback(() => { ready.current = true; }, [ready]);
 
   useEffect(() => {
@@ -150,6 +164,62 @@ function FlightShip({
       }
       return;
     }
+
+    const p = progress.get();
+
+    // Hero dwell: when near top of page, park in hero right half
+    const heroDwellEnd = stops.current[1] ?? 0.1; // end of hero → start of toolkit
+    const heroBlend = MathUtils.clamp(p / Math.max(0.001, heroDwellEnd * 0.5), 0, 1);
+
+    if (heroBlend < 1) {
+      // ── Hero parking position with idle bob ──
+      const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
+      shipTarget.set(
+        HERO_SHIP_POSITION[0] + pointer.current.x * -0.06,
+        HERO_SHIP_POSITION[1] + bobY + pointer.current.y * -0.04,
+        HERO_SHIP_POSITION[2],
+      );
+      group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
+
+      // Three-quarter view orientation + pointer tilt
+      pointerEuler.set(pointer.current.y * 0.06, pointer.current.x * 0.08, 0);
+      pointerRotation.setFromEuler(pointerEuler);
+
+      // Barrel roll
+      let flare = 0;
+      const roll = rollStart.current;
+      if (roll !== null) {
+        const rollProgress = Math.min(1, (performance.now() - roll) / 780);
+        rollRotation.setFromAxisAngle(localForward, Math.PI * 2 * rollProgress);
+        flare = Math.sin(Math.PI * rollProgress) * 2.4;
+        if (rollProgress >= 1) rollStart.current = null;
+      } else {
+        rollRotation.identity();
+      }
+
+      orientation.copy(heroQuat).multiply(pointerRotation).multiply(rollRotation);
+      group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
+      enginePower.current = MathUtils.damp(enginePower.current, 1 + flare, 5, delta);
+      warp.current = MathUtils.damp(warp.current, 0, 5, delta);
+
+      if (trail.current) {
+        trail.current.visible = false;
+      }
+
+      // Camera stays centred
+      const camera = state.camera;
+      cameraTarget.set(0, 0.55, 8);
+      camera.position.lerp(cameraTarget, 1 - Math.exp(-delta * 1.55));
+      cameraLookAt.set(0, 0, 0);
+      camera.lookAt(cameraLookAt);
+      if (camera instanceof PerspectiveCamera) {
+        camera.fov = MathUtils.damp(camera.fov, 48, 3.4, delta);
+        camera.updateProjectionMatrix();
+      }
+      return;
+    }
+
+    // ── Scroll flight (existing path) ──
     const sample = sampleFlight(progress.get(), stops.current);
     shipTarget.copy(sample.position);
     shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * 0.035 + pointer.current.y * -0.04;

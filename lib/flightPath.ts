@@ -2,14 +2,15 @@ import { CatmullRomCurve3, Vector3 } from "three";
 
 export const FLIGHT_SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
 
-// TODO: Adjust these world-space stops by eye. Research sits toward the image's bright, right-hand side.
+// Ship dwell stops beside each section — x offsets keep the ship in the margins,
+// never behind a centered content panel. Research sits toward the bright right side.
 export const FLIGHT_WAYPOINTS = [
-  new Vector3(2.05, -0.48, 0),
-  new Vector3(-2.2, 0.85, -0.35),
-  new Vector3(2.15, 0.25, -0.7),
-  new Vector3(3.1, 0.4, -0.45),
-  new Vector3(-2.25, -0.4, -0.7),
-  new Vector3(1.8, -0.9, -0.25),
+  new Vector3(2.6, -0.1, 0),     // hero — right half (matches HERO_SHIP_POSITION)
+  new Vector3(-2.8, 0.6, -0.3),  // toolkit — left margin
+  new Vector3(2.8, 0.15, -0.6),  // projects — right margin
+  new Vector3(3.2, 0.3, -0.4),   // research — bright right side
+  new Vector3(-2.9, -0.3, -0.6), // experience — left margin
+  new Vector3(2.4, -0.7, -0.2),  // contact — right margin
 ];
 
 export const flightCurve = new CatmullRomCurve3(FLIGHT_WAYPOINTS, false, "catmullrom", 0.5);

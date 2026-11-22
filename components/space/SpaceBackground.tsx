@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useScroll } from "framer-motion";
 import { Component, type ReactNode, useEffect, useState } from "react";
-import { BACKGROUND_SOURCE, ENABLE_3D_SHIP } from "@/lib/ship.config";
+import { BACKGROUND_SOURCE, ENABLE_3D_SHIP, LOW_POWER_CORE_THRESHOLD } from "@/lib/ship.config";
 
 const SpaceBackgroundCanvas = dynamic(() => import("@/components/space/SpaceBackgroundCanvas"), {
   ssr: false,
@@ -39,6 +39,45 @@ function supportsWebGL() {
   }
 }
 
+/** Resolve display mode with URL overrides (?ship=on|off) and debug logging (?debug=1). */
+function resolveMode(): DisplayMode {
+  const params = new URLSearchParams(window.location.search);
+  const shipOverride = params.get("ship");     // "on" | "off"
+  const debug = params.get("debug") === "1";
+
+  // URL overrides
+  if (shipOverride === "off") {
+    if (debug) console.info("[ship] canvas OFF — ?ship=off override");
+    return "fallback";
+  }
+  if (shipOverride === "on") {
+    if (debug) console.info("[ship] canvas ON — ?ship=on override (forced)");
+    return "active";
+  }
+
+  // Auto-detect
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const narrowViewport = window.innerWidth < 768;
+  const lowPower =
+    typeof navigator.hardwareConcurrency === "number" &&
+    navigator.hardwareConcurrency <= LOW_POWER_CORE_THRESHOLD;
+  const webgl = supportsWebGL();
+
+  if (debug) {
+    const reason =
+      reducedMotion ? "prefers-reduced-motion" :
+      narrowViewport ? `narrow viewport (${window.innerWidth}px < 768)` :
+      lowPower ? `low-power device (${navigator.hardwareConcurrency} cores <= ${LOW_POWER_CORE_THRESHOLD})` :
+      !webgl ? "WebGL not supported" :
+      "all checks passed";
+    const on = !reducedMotion && !narrowViewport && !lowPower && webgl;
+    console.info(`[ship] canvas ${on ? "ON" : "OFF"} — ${reason}`);
+  }
+
+  const canAnimate = !reducedMotion && !narrowViewport && !lowPower && webgl;
+  return canAnimate ? "active" : "fallback";
+}
+
 export function SpaceBackground() {
   if (!ENABLE_3D_SHIP) return null;
   return <EnabledSpaceBackground />;
@@ -50,11 +89,7 @@ function EnabledSpaceBackground() {
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updateMode = () => {
-      const limitedHardware = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency <= 4;
-      const canAnimate = !reducedMotion.matches && window.innerWidth >= 768 && !limitedHardware && supportsWebGL();
-      setMode(canAnimate ? "active" : "fallback");
-    };
+    const updateMode = () => setMode(resolveMode());
     updateMode();
     window.addEventListener("resize", updateMode, { passive: true });
     reducedMotion.addEventListener("change", updateMode);

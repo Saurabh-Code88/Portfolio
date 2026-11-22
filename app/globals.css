@@ -196,6 +196,12 @@ pre {
   box-shadow: 0 28px 90px rgb(0 0 0 / 28%);
 }
 
+/* ── When the 3D canvas is active, hero panel becomes see-through ── */
+.space-canvas-active .hero-panel {
+  background: transparent;
+  box-shadow: none;
+}
+
 .space-background {
   position: fixed;
   z-index: 0;
@@ -223,7 +229,7 @@ pre {
 
 .space-background__vignette {
   z-index: 1;
-  background: radial-gradient(ellipse at 50% 45%, transparent 8%, rgb(5 7 10 / 30%) 60%, rgb(5 7 10 / 90%) 120%), linear-gradient(180deg, rgb(5 7 10 / 24%), transparent 34%, rgb(5 7 10 / 48%));
+  background: radial-gradient(ellipse at 50% 45%, transparent 8%, rgb(5 7 10 / 20%) 60%, rgb(5 7 10 / 70%) 120%), linear-gradient(180deg, rgb(5 7 10 / 18%), transparent 34%, rgb(5 7 10 / 38%));
 }
 
 .space-background__stars {
@@ -264,7 +270,7 @@ pre {
 
 .space-background canvas {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
@@ -272,15 +278,43 @@ pre {
 }
 
 .space-background--active ~ .hero-page .hero-starfield { display: none; }
-.space-canvas-active .hero-panel { background: rgb(16 24 32 / 46%); }
 
+/* Left-side dark scrim behind text column for AA contrast; right half stays clear for the ship. */
 .space-canvas-active .hero-panel::before {
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   inset: 0;
-  background: linear-gradient(90deg, rgb(5 7 10 / 74%) 0%, rgb(5 7 10 / 55%) 49%, transparent 100%);
+  background: linear-gradient(90deg, rgb(5 7 10 / 78%) 0%, rgb(5 7 10 / 60%) 42%, transparent 62%);
   content: "";
   pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Hide the dot-grid overlay when the 3D canvas is active so the ship shows through. */
+.space-canvas-active::before {
+  display: none;
+}
+
+/* ── Translucent glass panels for sections so the scene shows through ── */
+.space-canvas-active .toolkit-group,
+.space-canvas-active .project-card,
+.space-canvas-active .research-panel,
+.space-canvas-active .experience-entry,
+.space-canvas-active .compact-entry,
+.space-canvas-active .contact-section {
+  background: rgb(16 24 32 / 65%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.space-canvas-active .content-section + .content-section {
+  border-top-color: rgb(196 122 32 / 8%);
+}
+
+.space-canvas-active .diagram-scroll {
+  background: rgb(24 38 53 / 72%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .hero-starfield {
@@ -431,16 +465,22 @@ pre {
   min-height: inherit;
   flex-direction: column;
   justify-content: center;
+  /* On desktop with the 3D ship, constrain text to the left ~55% so the right half is clear. */
+  max-width: 100%;
   padding: clamp(120px, 16vh, 156px) clamp(38px, 8vw, 110px);
+}
+
+.space-canvas-active .hero-panel__content {
+  max-width: 55%;
 }
 
 .hero-ship-trigger {
   position: absolute;
   z-index: 3;
-  top: 32%;
-  right: 4%;
-  width: 34%;
-  height: 48%;
+  top: 15%;
+  right: 2%;
+  width: 44%;
+  height: 65%;
   visibility: hidden;
   border: 0;
   background: transparent;
@@ -1171,6 +1211,7 @@ pre {
 
   .hero-panel__content {
     padding: 118px 34px 118px;
+    max-width: 100%;
   }
 
   .hero h1 {
