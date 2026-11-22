@@ -115,12 +115,7 @@ export function ShipModel({
   const sharedEnginePower = enginePower ?? defaultEnginePower;
   const modelRotation = forwardSign < 0 ? Math.PI : 0;
   useEffect(() => onLoad?.(), [onLoad]);
-  useEffect(() => () => {
-    disposeTexturedScene(model);
-    // This portfolio renders one ship instance per route; clear Drei's cached source so its GPU assets can be released too.
-    useGLTF.clear("/models/ship.glb");
-    disposeTexturedScene(gltf.scene);
-  }, [gltf.scene, model]);
+  useEffect(() => () => disposeTexturedScene(model), [model]);
   const nozzles = nozzleOffsets.map(([x, y, z]) => [x, y, z] as const);
 
   return (

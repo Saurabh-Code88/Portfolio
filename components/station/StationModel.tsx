@@ -111,7 +111,11 @@ export function StationModel({
   const antennaSprites = useRef<(SpriteMaterial | null)[]>([]);
   const rimEmitters = useRef<InstancedMesh>(null);
   const rimSprites = useRef<(SpriteMaterial | null)[]>([]);
-  const frameWindow = useRef({ elapsed: 0, count: 0, hidden: false });
+  const frameWindow = useRef({ elapsed: 0, count: 0, slowWindows: 0, hidden: false });
+  const monitorStartedAt = useRef(0);
+  const previousFrame = useRef<{ position: Vector3; scale: Vector3; visible: boolean; opacity: number[] } | null>(null);
+  const anomalyLogged = useRef(false);
+  const normalizedModel = useRef<Group>(null);
   const glow = useMemo(makeGlowTexture, []);
   const redGlow = useMemo(makeRedGlowTexture, []);
   const rimOffsets = useMemo(
@@ -136,6 +140,14 @@ export function StationModel({
   }, [center, size]);
 
   useEffect(() => {
+    monitorStartedAt.current = performance.now();
+    if (process.env.NODE_ENV === "development") console.info("[station] mounted");
+    return () => {
+      if (process.env.NODE_ENV === "development") console.info("[station] unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
     if (preview) onBounds?.([size.x, size.y, size.z]);
   }, [onBounds, preview, size]);
 
@@ -144,6 +156,15 @@ export function StationModel({
     redGlow.dispose();
     disposeScene(model);
   }, [glow, model, redGlow]);
+
+  useEffect(() => {
+    normalizedModel.current?.updateWorldMatrix(true, true);
+    model.traverse((object) => {
+      if (!(object instanceof Mesh)) return;
+      object.frustumCulled = false;
+      object.geometry.computeBoundingSphere();
+    });
+  }, [model, normalizeScale]);
 
   useEffect(() => {
     const emitters = rimEmitters.current;
@@ -161,16 +182,60 @@ export function StationModel({
 
   useFrame((state, delta) => {
     if (!group.current) return;
-    if (!preview) {
+    if (!preview && document.visibilityState !== "visible") {
+      frameWindow.current.elapsed = 0;
+      frameWindow.current.count = 0;
+      frameWindow.current.slowWindows = 0;
+    } else if (!preview && performance.now() - monitorStartedAt.current >= 2000) {
       frameWindow.current.elapsed += delta;
       frameWindow.current.count += 1;
       if (frameWindow.current.elapsed >= 1.5) {
-        if (frameWindow.current.count / frameWindow.current.elapsed < 30 && !frameWindow.current.hidden) {
+        const measuredFps = frameWindow.current.count / frameWindow.current.elapsed;
+        frameWindow.current.slowWindows = measuredFps < 30 ? frameWindow.current.slowWindows + 1 : 0;
+        if (frameWindow.current.slowWindows >= 2 && !frameWindow.current.hidden) {
           frameWindow.current.hidden = true;
+          if (process.env.NODE_ENV === "development") {
+            console.warn(`[station] hidden after sustained low frame rate (${measuredFps.toFixed(1)} FPS)`);
+          }
           onSlowFrame?.();
         }
         frameWindow.current.elapsed = 0;
         frameWindow.current.count = 0;
+      }
+    }
+    if (!preview && process.env.NODE_ENV === "development" && !anomalyLogged.current && performance.now() - monitorStartedAt.current >= 2000) {
+      const currentGroup = group.current;
+      if (currentGroup) {
+        currentGroup.updateWorldMatrix(true, true);
+        const position = currentGroup.getWorldPosition(new Vector3());
+        const worldScale = currentGroup.getWorldScale(new Vector3());
+        let visible = true;
+        let parent: Object3D | null = currentGroup;
+        while (parent) {
+          visible = visible && parent.visible;
+          parent = parent.parent;
+        }
+        const opacity: number[] = [];
+        model.traverse((object) => {
+          if (!(object instanceof Mesh)) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => opacity.push(material.opacity));
+        });
+        const previous = previousFrame.current;
+        const opacityChanged = previous
+          ? previous.opacity.length !== opacity.length
+            || previous.opacity.some((value, index) => !Number.isFinite(opacity[index]) || Math.abs(value - opacity[index]) > 0.25)
+          : false;
+        const unexpected = !visible || !position.toArray().every(Number.isFinite) || !worldScale.toArray().every(Number.isFinite)
+          || opacity.some((value) => !Number.isFinite(value) || value < 0 || value > 1)
+          || Boolean(previous && (position.distanceTo(previous.position) > 0.08 || worldScale.distanceTo(previous.scale) > 0.08 || visible !== previous.visible || opacityChanged));
+        if (unexpected) {
+          anomalyLogged.current = true;
+          console.error("[station] unexpected world transform, visibility, or material opacity", {
+            position: position.toArray(), scale: worldScale.toArray(), visible, opacity,
+          });
+        }
+        previousFrame.current = { position, scale: worldScale, visible, opacity };
       }
     }
     const pulse = 0.5 + Math.sin(state.clock.elapsedTime * 2.2) * 0.5;
@@ -196,7 +261,7 @@ export function StationModel({
 
   return (
     <group ref={group}>
-      <group scale={normalizeScale}>
+      <group ref={normalizedModel} scale={normalizeScale}>
         <primitive object={model} position={[-center.x, -center.y, -center.z]} dispose={null} />
       </group>
       {STATION_POD_GLOW_OFFSETS.map((offset, index) => (
@@ -208,7 +273,7 @@ export function StationModel({
       ))}
       {antennaOffsets.map((offset, index) => (
         <group key={`antenna-${index}`} position={offset as [number, number, number]}>
-          <mesh>
+          <mesh frustumCulled={false}>
             <sphereGeometry args={[0.045, 16, 12]} />
             <meshStandardMaterial ref={index === 0 ? antennaMaterial : undefined} color="#9c0d1c" emissive="#ff162b" emissiveIntensity={2.9} toneMapped={false} />
           </mesh>
@@ -218,7 +283,7 @@ export function StationModel({
           {!preview && index === 0 && <pointLight ref={antennaLight} color="#ff2035" intensity={0.5} distance={2.1} decay={2} />}
         </group>
       ))}
-      <instancedMesh ref={rimEmitters} args={[undefined, undefined, rimOffsets.length]}>
+      <instancedMesh ref={rimEmitters} args={[undefined, undefined, rimOffsets.length]} frustumCulled={false}>
         <sphereGeometry args={[1, 8, 6]} />
         <meshBasicMaterial vertexColors toneMapped={false} />
       </instancedMesh>
@@ -233,7 +298,7 @@ export function StationModel({
         </sprite>
         {!preview && <pointLight ref={dockLight} color="#6cb8ff" intensity={1} distance={1.2} decay={2} />}
       </group>
-      {!preview && <mesh position={[DOCK_POINT[0], DOCK_POINT[1] + 0.3, DOCK_POINT[2]]}>
+      {!preview && <mesh position={[DOCK_POINT[0], DOCK_POINT[1] + 0.3, DOCK_POINT[2]]} frustumCulled={false}>
         <cylinderGeometry args={[0.025, 0.06, 0.6, 12, 1, true]} />
         <meshBasicMaterial ref={dockBeamMaterial} color="#6cb8ff" transparent opacity={0.22} blending={AdditiveBlending} depthWrite={false} />
       </mesh>}

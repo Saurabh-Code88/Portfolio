@@ -10,6 +10,7 @@ export type StationTransform = {
 // Position X/Y are fractions of the camera frustum; Z is a world-space offset.
 export const STATION_SCALE = 1;
 export const STATION_DIAMETER = 4.6;
+export const STATION_HERO_CAMERA_FOV = 48;
 export const STATION_POSITION: readonly [number, number, number] = [0.27, -0.12, -0.35];
 export const STATION_ROTATION: readonly [number, number, number] = [0, 0, 0];
 export const DOCK_POINT: readonly [number, number, number] = [0, 0.76, 0];

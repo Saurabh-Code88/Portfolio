@@ -1,8 +1,8 @@
 # Progress
 Branch: feature/ship-polish
-Done: Glass UI pass; station loading now explicitly enables Meshopt, normalizes from a logged source bounding box, and reports render/load failures.
-Root cause: station load failures were swallowed by a null Suspense fallback without a station-specific error boundary or diagnostics.
+Done: Glass UI pass; station diagnostics, cached-asset cleanup safety, and config-based viewport placement.
+Root cause: Hidden-tab RAF throttling measured 28.4 FPS and triggered the station's 30 FPS auto-hide; it now ignores hidden tabs and startup dips.
 Next: Toolkit tool labels.
 Then: Small content and metadata fixes.
-Decisions: Station path is tracked and matches `/models/station.glb`; 45% frustum width target fits the right half at the hero depth; camera near/far are 0.1/120 and the station is about 8.35 units away.
-To tune: `STATION_DIAMETER` in lib/station.config.ts controls normalized width; low-power/reduced-motion fallbacks remain enabled.
+Decisions: Cached useGLTF scenes remain shared; only per-mount clones are disposed. Station placement is independent of scroll progress; visible tabs need two sub-30 FPS windows after a 2-second warmup to auto-hide.
+To tune: `STATION_DIAMETER`, `STATION_HERO_CAMERA_FOV`, station breakpoint transforms; station visibility fallback remains at 30 FPS sustained.

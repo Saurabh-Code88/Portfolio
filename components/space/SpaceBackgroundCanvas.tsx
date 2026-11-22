@@ -33,6 +33,7 @@ import {
   STATION_BREAKPOINT_OVERRIDES,
   STATION_DIAMETER,
   STATION_HEIGHT_RATIO,
+  STATION_HERO_CAMERA_FOV,
   STATION_SCALE,
   STATION_YAW_DRIFT,
 } from "@/lib/station.config";
@@ -132,6 +133,7 @@ function FlightShip({
   const stationUserGroup = useRef<Group>(null);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
+  const heroCameraZ = useRef(camera.position.z);
   const [stationReady, setStationReady] = useState(false);
   const [stationEnabled, setStationEnabled] = useState(true);
   const trail = useRef<Group>(null);
@@ -438,43 +440,50 @@ function FlightShip({
     const heroDwellEnd = stops.current[1] ?? 0.1; // end of hero → start of toolkit
     const heroBlend = MathUtils.clamp(p / Math.max(0.001, heroDwellEnd * 0.5), 0, 1);
 
+    const stationPreset = state.size.width >= STATION_BREAKPOINT_OVERRIDES.desktop.minWidth
+      ? STATION_BREAKPOINT_OVERRIDES.desktop
+      : STATION_BREAKPOINT_OVERRIDES.tablet;
+    const aspect = Number.isFinite(state.viewport.aspect) ? Math.max(0.1, state.viewport.aspect) : 1;
+    const cameraDistance = Math.max(0.1, (Number.isFinite(heroCameraZ.current) ? heroCameraZ.current : 8) - stationPreset.position[2]);
+    const frustumHeight = 2 * cameraDistance * Math.tan(STATION_HERO_CAMERA_FOV * Math.PI / 360);
+    const frustumWidth = frustumHeight * aspect;
+    const desiredWidth = Math.min(
+      frustumWidth * stationPreset.widthFraction * STATION_SCALE * stationPreset.scale,
+      frustumWidth * 0.47,
+    );
+    const stationWorldScale = desiredWidth / (STATION_DIAMETER * STATION_SCALE);
+    const horizontalRadius = desiredWidth / 2;
+    const margin = frustumWidth * 0.005;
+    const stationX = MathUtils.clamp(
+      frustumWidth * stationPreset.position[0],
+      horizontalRadius + margin,
+      frustumWidth / 2 - horizontalRadius - margin,
+    );
+    const stationHeight = desiredWidth * STATION_HEIGHT_RATIO;
+    const stationY = MathUtils.clamp(
+      frustumHeight * stationPreset.position[1],
+      -frustumHeight / 2 + stationHeight / 2 + margin,
+      frustumHeight / 2 - stationHeight / 2 - margin,
+    );
+    stationPosition.set(stationX, stationY, stationPreset.position[2]);
+    dockLocal.set(...stationPreset.dockPoint);
+    stationEuler.set(
+      stationPreset.rotation[0],
+      stationPreset.rotation[1] + state.clock.elapsedTime * STATION_YAW_DRIFT,
+      stationPreset.rotation[2],
+    );
+    dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
+    if (stationGroup.current) {
+      stationGroup.current.visible = true;
+      stationGroup.current.position.copy(stationPosition);
+      stationGroup.current.rotation.copy(stationEuler);
+      stationGroup.current.scale.setScalar(stationWorldScale);
+    }
+
     if (heroBlend < 1) {
       // ── Hero parking position with idle bob ──
       const heroAspectScale = state.viewport.aspect / 1.6;
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
-      const stationPreset = state.size.width >= STATION_BREAKPOINT_OVERRIDES.desktop.minWidth
-        ? STATION_BREAKPOINT_OVERRIDES.desktop
-        : STATION_BREAKPOINT_OVERRIDES.tablet;
-      const fitCamera = state.camera as PerspectiveCamera;
-      const cameraDistance = Math.max(0.1, fitCamera.position.z - stationPreset.position[2]);
-      const frustumHeight = 2 * cameraDistance * Math.tan(fitCamera.fov * Math.PI / 360);
-      const frustumWidth = frustumHeight * state.viewport.aspect;
-      const desiredWidth = Math.min(
-        frustumWidth * stationPreset.widthFraction * STATION_SCALE * stationPreset.scale,
-        frustumWidth * 0.47,
-      );
-      const stationWorldScale = desiredWidth / (STATION_DIAMETER * STATION_SCALE);
-      const horizontalRadius = desiredWidth / 2;
-      const margin = frustumWidth * 0.005;
-      const stationX = MathUtils.clamp(
-        frustumWidth * stationPreset.position[0],
-        horizontalRadius + margin,
-        frustumWidth / 2 - horizontalRadius - margin,
-      );
-      const stationHeight = desiredWidth * STATION_HEIGHT_RATIO;
-      const stationY = MathUtils.clamp(
-        frustumHeight * stationPreset.position[1],
-        -frustumHeight / 2 + stationHeight / 2 + margin,
-        frustumHeight / 2 - stationHeight / 2 - margin,
-      );
-      stationPosition.set(stationX, stationY, stationPreset.position[2]);
-      dockLocal.set(...stationPreset.dockPoint);
-      stationEuler.set(
-        stationPreset.rotation[0],
-        stationPreset.rotation[1] + state.clock.elapsedTime * STATION_YAW_DRIFT,
-        stationPreset.rotation[2],
-      );
-      dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
       dockedPosition.set(
         stationPosition.x + dockOffset.x,
         stationPosition.y + dockOffset.y + DOCK_HOVER_HEIGHT + bobY * 0.35,
@@ -491,13 +500,6 @@ function FlightShip({
       const dockScale = Math.min(DOCK_HOVER_HEIGHT, HERO_SHIP_SCALE * heroAspectScale);
       const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
       group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
-
-      if (stationGroup.current) {
-        stationGroup.current.visible = heroBlend < 0.995;
-        stationGroup.current.position.set(stationX + heroBlend * 1.6, stationY + heroBlend * 3.2, stationPreset.position[2]);
-        stationGroup.current.rotation.copy(stationEuler);
-        stationGroup.current.scale.setScalar(stationWorldScale * MathUtils.lerp(1, 0.86, heroBlend));
-      }
 
       // Three-quarter view orientation + pointer tilt
       direction.copy(flightCurve.getTangent(0)).normalize();
@@ -621,12 +623,29 @@ function FlightShip({
 }
 
 function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
+  const gl = useThree((state) => state.gl);
   const [bloomEnabled, setBloomEnabled] = useState(false);
   const loaded = useRef(false);
   const warp = useRef(0);
   const farStars = useRef<Group>(null);
   const nearStars = useRef<Group>(null);
   const pointer = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const canvas = gl.domElement;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      console.error("[station] WebGL context lost");
+    };
+    const onContextRestored = () => console.info("[station] WebGL context restored");
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
+    return () => {
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
+    };
+  }, [gl]);
 
   useEffect(() => {
     const onPointer = (event: PointerEvent) => {
@@ -686,8 +705,8 @@ function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
 export default function SpaceBackgroundCanvas({ scrollProgress }: { scrollProgress: MotionValue<number> }) {
   return (
     <Canvas
-      camera={{ position: [0, 0, 8], fov: 48, near: 0.1, far: 120 }}
-      dpr={[1, 1.75]}
+      camera={{ position: [0, 0, 8], fov: STATION_HERO_CAMERA_FOV, near: 0.1, far: 120 }}
+      dpr={[1, 1.5]}
       gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       style={{ background: "transparent" }}
     >
