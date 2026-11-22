@@ -446,7 +446,6 @@ pre {
 }
 
 @media (min-width: 601px) and (max-width: 1023px) {
-  .hero-ask { width: min(100%, 360px); }
   .hero-ship-trigger { right: 12%; width: 25%; height: 36%; }
 }
 
@@ -551,59 +550,10 @@ pre {
   line-height: 1.7;
 }
 
-.hero-ask {
+.hero-ask-space {
   width: min(100%, 610px);
   margin-top: clamp(28px, 5vh, 44px);
-}
-
-.hero-ask label {
-  display: block;
-  margin-bottom: 10px;
-  color: var(--amber);
-  font-family: var(--font-display), serif;
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.hero-ask input {
-  width: 100%;
-  min-height: 56px;
-  padding: 14px 18px;
-  border: 1px solid var(--rust);
-  border-radius: 12px;
-  background: var(--bg);
-  color: var(--ink);
-  font: inherit;
-  opacity: 1;
-}
-
-.hero-ask input:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
-.hero-ask__button {
-  margin-top: 12px;
-  min-height: 44px;
-  padding: 10px 18px;
-  border: 1px solid var(--amber);
-  border-radius: 10px;
-  background: var(--amber);
-  color: var(--bg);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.hero-ask__button:disabled { cursor: wait; opacity: 0.65; }
-.hero-ask__button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
-.hero-ask__answer { max-width: 70ch; margin-top: 16px; white-space: pre-wrap; line-height: 1.65; }
-
-.hero-ask input::placeholder {
-  color: var(--ink);
-  opacity: 0.72;
-}
-
-.hero-ask__status {
-  margin: 8px 0 0;
-  color: var(--ink);
-  font-size: 0.78rem;
-  opacity: 0.78;
+  min-height: 142px;
 }
 
 .content-section,
@@ -1224,7 +1174,7 @@ pre {
     font-size: 1rem;
   }
 
-  .hero-ask {
+  .hero-ask-space {
     margin-top: 26px;
   }
 

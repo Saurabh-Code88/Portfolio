@@ -11,7 +11,6 @@ The endpoint uses stateless Streamable HTTP. It exposes these read-only tools:
 - `get_project` accepts a project `slug`.
 - `get_experience` returns work experience, education, and certifications.
 - `get_research` returns publication details.
-- `ask_saurabh` accepts a `question` and answers from the portfolio corpus.
 
 Example remote MCP client configuration (replace the URL with the deployed
 site URL):
@@ -26,12 +25,8 @@ site URL):
 }
 ```
 
-The read tools return the typed content from `content/`. `ask_saurabh` uses the
-same corpus, BM25 retriever, Groq provider, and per-IP limiter as `/api/ask`.
-It returns a Contact fallback when no portfolio content matches. Configure
-`GROQ_API_KEY` to enable generated answers. Configure both
-`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for shared rate limits;
-development uses an in-memory limiter.
+The tools return typed, read-only content from `content/` and run without AI or
+rate-limiting service credentials.
 
 ## Development
 
@@ -58,16 +53,10 @@ deployed as part of this change.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `GROQ_API_KEY` | Yes for generated answers | Server-side Groq key used by `/api/ask` and `ask_saurabh`. |
-| `UPSTASH_REDIS_REST_URL` | Yes in production | Upstash Redis REST endpoint for the per-IP limiter. |
-| `UPSTASH_REDIS_REST_TOKEN` | Yes in production | Upstash Redis REST token; keep it server-side. |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | Public production origin (for example, `https://portfolio.example`) used by metadata, sitemap, and robots. |
 
-Add secret values in Vercel's Environment Variables settings for Production
-and Preview as appropriate. Only `NEXT_PUBLIC_SITE_URL` is public; do not use a
-`NEXT_PUBLIC_` prefix for API keys or tokens. Set `NEXT_PUBLIC_SITE_URL` to the
-production domain for production and the preview origin for previews. The app
-can use Vercel's project production URL when the variable is absent and Vercel
-system environment variables are enabled. For local development, copy
-`.env.example` to `.env.local` and fill in the values; the local development
-rate limiter works without Upstash.
+Set `NEXT_PUBLIC_SITE_URL` to the production domain for production and the
+preview origin for previews. The app can use Vercel's project production URL
+when the variable is absent and Vercel system environment variables are enabled.
+For local development, copy `.env.example` to `.env.local` and fill in the
+values.

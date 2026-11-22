@@ -1,10 +1,9 @@
-import { askRuntime } from "@/lib/ask-runtime";
 import { createMcpHandler } from "@/lib/mcp-handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const handler = createMcpHandler(askRuntime);
+const handler = createMcpHandler();
 
 export const POST = handler;
 export function GET() {

@@ -4,9 +4,6 @@ export type Profile = {
   location: string;
   headline: string;
   subline: string;
-  askLabel: string;
-  askPlaceholder: string;
-  askStatus: string;
   links: {
     github: string;
     linkedin: string;
@@ -22,9 +19,6 @@ export const profile: Profile = {
   location: "Noida, India",
   headline: "I build the backend systems AI agents run on.",
   subline: "Queues, retrieval, streaming and fault tolerance for LLM products. Node.js, Python, Redis, PostgreSQL.",
-  askLabel: "Ask the ship",
-  askPlaceholder: "Ask about projects, research, or experience…",
-  askStatus: "Answers use the portfolio details on this site.",
   links: {
     github: "https://github.com/Saurabh-Code88",
     linkedin: "https://linkedin.com/in/saurabh-pramanik",
