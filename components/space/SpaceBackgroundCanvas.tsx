@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, Lightformer, Sparkles, Stars } from "@react-three/drei";
 import type { MotionValue } from "framer-motion";
@@ -16,6 +16,7 @@ import {
   Vector3,
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
+import { StationModel } from "@/components/station/StationModel";
 import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "@/lib/flightPath";
 import {
   HERO_SHIP_POSITION,
@@ -24,6 +25,7 @@ import {
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
 } from "@/lib/ship.config";
+import { DOCK_POINT, STATION_POSITION, STATION_ROTATION } from "@/lib/station.config";
 
 function HyperspaceStreaks({ ready, warp }: { ready: MutableRefObject<boolean>; warp: MutableRefObject<number> }) {
   const bootIntensity = useRef(1);
@@ -81,6 +83,9 @@ function FlightShip({
   warp: MutableRefObject<number>;
 }) {
   const group = useRef<Group>(null);
+  const stationGroup = useRef<Group>(null);
+  const [stationReady, setStationReady] = useState(false);
+  const [stationEnabled, setStationEnabled] = useState(true);
   const trail = useRef<Group>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const rollStart = useRef<number | null>(null);
@@ -100,6 +105,10 @@ function FlightShip({
   const cameraTarget = useMemo(() => new Vector3(), []);
   const cameraLookAt = useMemo(() => new Vector3(), []);
   const shipTarget = useMemo(() => new Vector3(), []);
+  const dockedPosition = useMemo(() => new Vector3(), []);
+  const dockOffset = useMemo(() => new Vector3(...DOCK_POINT).applyEuler(new Euler(...STATION_ROTATION)), []);
+  const freePosition = useMemo(() => new Vector3(), []);
+  const dockingPulse = useRef<Group>(null);
 
   // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
   const heroQuat = useMemo(() => {
@@ -108,7 +117,8 @@ function FlightShip({
     q.setFromEuler(e);
     return q;
   }, []);
-  const modelLoaded = useCallback(() => { ready.current = true; }, [ready]);
+  const dockQuat = useMemo(() => new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0)), []);
+  const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
 
   useEffect(() => {
     const updateStops = () => {
@@ -156,6 +166,7 @@ function FlightShip({
     if (!group.current) return;
     if (skipFlight.current) {
       group.current.visible = false;
+      if (stationGroup.current) stationGroup.current.visible = false;
       if (trail.current) trail.current.visible = false;
       warp.current = 0;
       enginePower.current = 1;
@@ -176,14 +187,31 @@ function FlightShip({
       // ── Hero parking position with idle bob ──
       const heroAspectScale = state.viewport.aspect / 1.6;
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
-      shipTarget.set(
+      const stationX = STATION_POSITION[0] * heroAspectScale;
+      const stationY = STATION_POSITION[1];
+      dockedPosition.set(
+        stationX + dockOffset.x,
+        stationY + dockOffset.y + 1.65 * heroAspectScale + bobY * 0.35,
+        STATION_POSITION[2] + dockOffset.z,
+      );
+      freePosition.set(
         HERO_SHIP_POSITION[0] * heroAspectScale + pointer.current.x * -0.06,
         HERO_SHIP_POSITION[1] + bobY + pointer.current.y * -0.04,
         HERO_SHIP_POSITION[2],
       );
+      shipTarget.lerpVectors(dockedPosition, freePosition, heroBlend);
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
       const heroScale = MathUtils.lerp(1, HERO_SHIP_SCALE * heroAspectScale, 1 - heroBlend);
-      group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, heroScale, 4, delta));
+      const dockScale = Math.min(1.65 * heroAspectScale, HERO_SHIP_SCALE * heroAspectScale);
+      const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
+      group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
+
+      if (stationGroup.current) {
+        stationGroup.current.visible = heroBlend < 0.995;
+        stationGroup.current.position.set(stationX + heroBlend * 1.6, stationY + heroBlend * 3.2, STATION_POSITION[2]);
+        stationGroup.current.rotation.set(STATION_ROTATION[0], STATION_ROTATION[1] + state.clock.elapsedTime * 0.00012, STATION_ROTATION[2]);
+        stationGroup.current.scale.setScalar(MathUtils.lerp(1, 0.86, heroBlend));
+      }
 
       // Three-quarter view orientation + pointer tilt
       pointerEuler.set(pointer.current.y * 0.06, pointer.current.x * 0.08, 0);
@@ -201,9 +229,10 @@ function FlightShip({
         rollRotation.identity();
       }
 
-      orientation.copy(heroQuat).multiply(pointerRotation).multiply(rollRotation);
+      orientation.copy(dockQuat).slerp(heroQuat, heroBlend).multiply(pointerRotation).multiply(rollRotation);
       group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
       enginePower.current = MathUtils.damp(enginePower.current, 1 + flare, 5, delta);
+      if (dockingPulse.current) dockingPulse.current.scale.setScalar(0.85 + (0.5 + Math.sin(state.clock.elapsedTime * 2.2) * 0.5) * 0.2);
       warp.current = MathUtils.damp(warp.current, 0, 5, delta);
 
       if (trail.current) {
@@ -270,14 +299,26 @@ function FlightShip({
   });
 
   return (
-    <group ref={group}>
-      <Suspense fallback={null}>
-        <ShipModel labels={false} onLoad={modelLoaded} enginePower={enginePower} />
-      </Suspense>
-      <group ref={trail} position={[0, 0, -0.5]} visible={false}>
-        <Sparkles count={24} scale={[0.35, 0.35, 0.9]} size={2} speed={0.55} color="#6cb8ff" opacity={0.82} />
+    <>
+      <group ref={stationGroup} position={STATION_POSITION as [number, number, number]} rotation={STATION_ROTATION as [number, number, number]}>
+        {stationReady && stationEnabled && <Suspense fallback={null}><StationModel onSlowFrame={() => setStationEnabled(false)} /></Suspense>}
       </group>
-    </group>
+      <group ref={group}>
+        <Suspense fallback={null}>
+          <ShipModel labels={false} onLoad={modelLoaded} enginePower={enginePower} />
+        </Suspense>
+        <group ref={dockingPulse} position={[0, 0, -0.62]}>
+          <pointLight color="#6cb8ff" intensity={0.5} distance={1.1} decay={2} />
+          <mesh>
+            <sphereGeometry args={[0.035, 12, 10]} />
+            <meshBasicMaterial color="#d9f2ff" />
+          </mesh>
+        </group>
+        <group ref={trail} position={[0, 0, -0.5]} visible={false}>
+          <Sparkles count={24} scale={[0.35, 0.35, 0.9]} size={2} speed={0.55} color="#6cb8ff" opacity={0.82} />
+        </group>
+      </group>
+    </>
   );
 }
 
