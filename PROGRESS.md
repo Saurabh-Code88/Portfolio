@@ -1,21 +1,18 @@
 # Space ship theme implementation progress
 
 ## Done
-- Step 1 — Assets: source assets copied into `assets-src/`; background resized and exported; ship optimization attempted, then unchanged copy used after npm registry returned `ECOMPROMISED`. Credits file added with licenses to confirm. Scene defaults are in `lib/ship.config.ts`; orientation, scale, nozzle offsets, and scan axis are TODO guesses. Assets commit: `8a888ff`.
-- Step 2 — Dependencies: installed Three.js 0.187.0, `@types/three` 0.187.0, Fiber 9.8.2, Drei 10.7.9, and React Three Postprocessing 3.2.2. `npm ls` exits cleanly with React 19.3.1 and Next 15.5.29.
-- Step 3 — Ship preview: `/dev/ship` is a client-only, lazy-loaded R3F route with orbit controls, axes/grid, procedural lightformers, bloom, endpoint labels, and additive nozzle sprites/cones/lights. Lint, typecheck, all 8 tests, and build pass.
-- Step 4 — Site background and hero ship: active desktop mode lazy-loads a transparent full-screen canvas after the hero, with image/procedural CSS backdrops, star parallax, boot streaks, idle pointer tilt, and a cooldown barrel-roll/engine flare trigger. Reduced-motion, narrow, low-core, unsupported WebGL, and canvas-error paths use the static CSS background. `ENABLE_3D_SHIP=false` removes the optional background/canvas and keeps the existing hero starfield. Commit: `fe566db`.
-- Step 5 — Flight between sections: Framer Motion `useScroll` progress samples the six-point Catmull-Rom path using the actual existing section offsets. Smooth easing docks at each stop; the research stop is on the bright right side. Curvature banking, a lagged chase camera, section-transition FOV/warp streaks, and a short Sparkles trail are active only in the 3D path.
-- Step 6 — Fallbacks, performance, and navigation: added the active-mode "Skip the flight" link; both canvases cap DPR at 1.75; cloned model geometry/materials/textures and the cached source assets are disposed on unmount. Responsive, reduced-motion, low-core, WebGL test, and render-error fallbacks are in place. Final checks pending.
+- Steps 1–5 complete: source assets and dependencies, `/dev/ship`, optional desktop 3D hero, section flight path, and accessibility/performance fallbacks.
+- Step 6 implementation complete: skip-flight navigation, DPR caps, resource disposal, responsive/reduced-motion/low-core/WebGL/error fallbacks.
+- Agent context rules appended to `AGENTS.md` in this maintenance step.
 
 ## Next
-- Run the step 6 lint, typecheck, test, and build checks; record final bundle and asset sizes.
+- Run step 6 lint, typecheck, tests, and build; record final bundle and asset sizes.
 
 ## Decisions
-- The supplied background image is a 1002×768 PNG, preserved unchanged as `assets-src/space-bg.png`; it was upscaled with Lanczos to 2560×1962 and exported as progressive JPEG quality 80 (275,763 bytes).
-- Ship source is preserved as `assets-src/textured_mesh.glb`. The requested optimizer could not be installed/run: sandbox access was denied, and the network-enabled retry returned npm `ECOMPROMISED`. Per the fallback instruction, `public/models/ship.glb` is an unchanged copy (6,563,284 bytes).
-- The attached background's original creator/source and license were not supplied; `public/CREDITS.md` marks them TO CONFIRM.
-- No API routes, content data, tests, or `docs/PORTFOLIO_STATUS.md` were changed.
-- Dependency install completed with no reported peer conflicts; `npm ls three @types/three @react-three/fiber @react-three/drei @react-three/postprocessing react next` exits 0.
-- The preview route reports 1.83 kB route JS / 108 kB first-load JS in Next build output; the R3F canvas is loaded through a dynamic chunk after the route mounts.
-- The path uses the current IDs `toolkit`, `projects`, `research`, `experience`, `contact` plus `[data-flight-section='hero']`; it does not add IDs or data attributes to the other sections.
+- Optional 3D remains controlled by `ENABLE_3D_SHIP`; static CSS/starfield paths cover unsupported or constrained devices.
+- Background source and ship model licensing remain marked TO CONFIRM in `public/CREDITS.md`.
+- Ship model optimizer was unavailable; `public/models/ship.glb` remains an unchanged copy (6,563,284 bytes).
+- Build previously reported `/dev/ship` at 1.83 kB route JS / 108 kB first-load JS; R3F loads dynamically.
+
+## Constants to tune
+- `lib/ship.config.ts`: orientation, scale, nozzle offsets, and scan axis remain TODO guesses.
