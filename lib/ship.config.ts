@@ -12,10 +12,10 @@ export const scale = 1;
 
 // Hero dwell position: the ship sits in the right half of the hero.
 // x > 0 pushes right, y adjusts vertical, z adjusts depth.
-export const HERO_SHIP_POSITION: readonly [number, number, number] = [3.5, -0.1, 0];
+export const HERO_SHIP_POSITION: readonly [number, number, number] = [1.5, -0.1, 0];
 
 // Hero-only size multiplier; fades back to 1 as the ship leaves the hero.
-export const HERO_SHIP_SCALE = 2;
+export const HERO_SHIP_SCALE = 2.5;
 
 // Three-quarter rotation (radians): nose toward upper-right.
 // [pitch, yaw, roll] — yaw rotates nose right, pitch tilts nose up.

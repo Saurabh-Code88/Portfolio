@@ -174,14 +174,15 @@ function FlightShip({
 
     if (heroBlend < 1) {
       // ── Hero parking position with idle bob ──
+      const heroAspectScale = state.viewport.aspect / 1.6;
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
       shipTarget.set(
-        HERO_SHIP_POSITION[0] + pointer.current.x * -0.06,
+        HERO_SHIP_POSITION[0] * heroAspectScale + pointer.current.x * -0.06,
         HERO_SHIP_POSITION[1] + bobY + pointer.current.y * -0.04,
         HERO_SHIP_POSITION[2],
       );
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
-      const heroScale = MathUtils.lerp(1, HERO_SHIP_SCALE, 1 - heroBlend);
+      const heroScale = MathUtils.lerp(1, HERO_SHIP_SCALE * heroAspectScale, 1 - heroBlend);
       group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, heroScale, 4, delta));
 
       // Three-quarter view orientation + pointer tilt
