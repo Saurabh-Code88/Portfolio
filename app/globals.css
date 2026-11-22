@@ -12,6 +12,10 @@
   --ink-muted: #c9b69b;
   --ion: #6cb8ff;
   --line: rgb(196 122 32 / 28%);
+  --glass-fill: rgb(7 10 14 / 94%);
+  --glass-border: rgb(232 160 69 / 24%);
+  --glass-blur: 12px;
+  --glass-glow: 0 0 24px rgb(232 160 69 / 10%);
 }
 
 @theme inline {
@@ -309,15 +313,37 @@ html.model-grab-active * {
 }
 
 /* ── Translucent glass panels for sections so the scene shows through ── */
-.space-canvas-active .toolkit-group,
-.space-canvas-active .project-card,
-.space-canvas-active .research-panel,
-.space-canvas-active .experience-entry,
-.space-canvas-active .compact-entry,
-.space-canvas-active .contact-section {
-  background: rgb(16 24 32 / 65%);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+.toolkit-group,
+.project-card,
+.research-panel,
+.experience-entry,
+.compact-entry,
+.contact-section {
+  border-color: var(--glass-border);
+  background: var(--glass-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.content-section,
+.toolkit-group,
+.project-card,
+.research-panel,
+.experience-entry,
+.compact-entry {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.toolkit-group:hover,
+.project-card:hover,
+.research-panel:hover,
+.experience-entry:hover,
+.compact-entry:hover,
+.contact-section:hover {
+  box-shadow: var(--glass-glow);
 }
 
 .space-canvas-active .content-section + .content-section {
@@ -773,6 +799,8 @@ html.model-grab-active * {
 
 .content-section {
   padding-block: clamp(64px, 9vw, 112px);
+  padding-inline: clamp(18px, 3vw, 36px);
+  border-radius: 22px;
   scroll-margin-top: 32px;
 }
 
@@ -813,9 +841,7 @@ html.model-grab-active * {
 .toolkit-group {
   min-width: 0;
   padding: clamp(20px, 3vw, 30px);
-  border: 1px solid var(--line);
   border-radius: 18px;
-  background: var(--surface);
   transition: border-color 180ms ease, transform 180ms ease;
 }
 
@@ -866,9 +892,9 @@ html.model-grab-active * {
   align-items: center;
   gap: 9px;
   padding: 5px 12px 5px 6px;
-  border: 1px solid rgb(196 122 32 / 20%);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
-  background: rgb(16 24 32 / 55%);
+  background: var(--glass-fill);
   color: var(--ink);
   font-size: 0.85rem;
   transition: color 180ms ease, border-color 180ms ease, background 180ms ease, transform 180ms ease;
@@ -937,7 +963,9 @@ html.model-grab-active * {
 
 .project-list {
   display: grid;
-  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
 }
 
 .project-card,
@@ -945,9 +973,7 @@ html.model-grab-active * {
 .experience-entry,
 .compact-entry,
 .detail-section {
-  border: 1px solid var(--ember);
   border-radius: 18px;
-  background: var(--surface);
 }
 
 .project-card,
@@ -966,12 +992,94 @@ html.model-grab-active * {
 
 .project-card {
   overflow: hidden;
+  border-radius: 14px;
+}
+
+.project-card__summary {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-height: 142px;
+  align-content: start;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.project-card__summary::-webkit-details-marker { display: none; }
+
+.project-card__summary::after {
+  position: absolute;
+  right: 18px;
+  color: var(--amber);
+  content: "+";
+}
+
+.project-card[open] > .project-card__summary::after { content: "−"; }
+
+.project-card__summary h2,
+.project-card__summary h3 {
+  margin: 0;
+  padding-right: 22px;
+  color: var(--amber);
+  font-size: 1.12rem;
+  line-height: 1.3;
+}
+
+.project-card__summary > p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.83rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.project-card__tags { gap: 5px; }
+
+.project-card__tags li {
+  padding: 3px 7px;
+  font-size: 0.65rem;
+}
+
+.project-card__details { border-top: 1px solid var(--glass-border); }
+
+.project-card__body {
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.project-card__body p { font-size: 0.85rem; }
+
+.project-card .project-actions { gap: 7px; }
+
+.project-card .project-actions a,
+.project-card .project-actions button {
+  min-height: 38px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .project-card:not([open]) > .project-card__details { display: none; }
+  .project-card:hover > .project-card__details,
+  .project-card:focus-within > .project-card__details { display: block; }
+  .project-card:hover > .project-card__summary::after,
+  .project-card:focus-within > .project-card__summary::after { content: "−"; }
+}
+
+.project-card:focus-visible,
+.project-card__summary:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
 }
 
 .diagram-scroll {
   overflow-x: auto;
   border-bottom: 1px solid var(--ember);
-  background: var(--surface-2);
+  background: var(--glass-fill);
   scrollbar-color: var(--rust) var(--surface);
 }
 
@@ -1021,8 +1129,8 @@ html.model-grab-active * {
   padding: 24px;
 }
 
-.project-card h2,
-.project-card h3,
+.project-card__body h2,
+.project-card__body h3,
 .research-panel h3,
 .experience-entry h3 {
   margin: 0;
@@ -1055,6 +1163,30 @@ html.model-grab-active * {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+
+.project-card__body { gap: 14px; padding: 16px 18px; }
+.project-card__body p { font-size: 0.85rem; }
+.project-card .project-actions { gap: 7px; }
+.project-card .project-actions a,
+.project-card .project-actions button,
+.project-card .project-detail-link {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--rust);
+  border-radius: 10px;
+  color: var(--amber);
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.project-card .project-detail-link:hover,
+.project-card .project-detail-link:focus-visible {
+  border-color: var(--amber);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .project-actions a,
@@ -1219,9 +1351,9 @@ html.model-grab-active * {
 .contact-section {
   margin-bottom: 32px;
   padding: clamp(26px, 5vw, 48px);
-  border: 1px solid var(--rust);
+  border: 1px solid var(--glass-border);
   border-radius: 20px;
-  background: var(--surface);
+  background: var(--glass-fill);
 }
 
 .contact-section .section-heading h2 {
@@ -1257,6 +1389,10 @@ html.model-grab-active * {
 }
 
 .detail-section {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   margin-top: 18px;
   padding: clamp(22px, 4vw, 34px);
 }
@@ -1324,6 +1460,7 @@ html.model-grab-active * {
 }
 
 @media (max-width: 600px) {
+  .project-list { grid-template-columns: minmax(0, 1fr); }
   .site-header {
     width: 100%;
     min-height: 62px;
@@ -1432,7 +1569,7 @@ html.model-grab-active * {
 
   .project-card__body {
     flex-direction: column;
-    padding: 20px;
+    padding: 16px 18px;
   }
 
   .project-actions {

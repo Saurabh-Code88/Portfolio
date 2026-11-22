@@ -1,7 +1,7 @@
 # Progress
 Branch: feature/ship-polish
-Done: Continuous ship flight and interactive desktop rotation; station now has pulsing red antenna and chasing rim emitters, live preview tuning, and HDR-threshold bloom.
+Done: Glass surface pass with shared fill, border, blur and hover-glow tokens; compact expandable project cards.
 Next: Toolkit tool labels.
 Then: Small content and metadata fixes.
-Decisions: +Z is the ship's front, engines at -Z; station bounds confirm +Y up; station uses only two point lights; bloom is disabled for low-power/reduced-motion scenes.
-To tune: flight waypoints in lib/flightPath.ts; drag settings in lib/rotation.config.ts; antenna and rim offsets/pattern in lib/station.config.ts.
+Decisions: Glass fill uses 94% opacity to retain AA text contrast over bright scene areas; project cards use native details/summary disclosure.
+To tune: --glass-fill, --glass-border, --glass-blur, --glass-glow in app/globals.css; card grid gap and summary sizing in app/globals.css.
