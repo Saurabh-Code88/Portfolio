@@ -100,7 +100,7 @@ export function StationModel({
   onSlowFrame?: () => void;
   onBounds?: (size: readonly [number, number, number]) => void;
 }) {
-  const { scene } = useGLTF("/models/station.glb");
+  const { scene } = useGLTF("/models/station.glb", true, true);
   const model = useMemo(() => cloneTexturedScene(scene), [scene]);
   const group = useRef<Group>(null);
   const dockLight = useRef<PointLight>(null);
@@ -126,6 +126,14 @@ export function StationModel({
   const center = useMemo(() => bounds.getCenter(new Vector3()), [bounds]);
   const size = useMemo(() => bounds.getSize(new Vector3()), [bounds]);
   const normalizeScale = STATION_DIAMETER / Math.max(size.x, size.z, 0.001) * scale;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    console.info("[station] source bounds", {
+      size: [size.x, size.y, size.z],
+      center: [center.x, center.y, center.z],
+    });
+  }, [center, size]);
 
   useEffect(() => {
     if (preview) onBounds?.([size.x, size.y, size.z]);

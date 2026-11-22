@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, Sparkles, Stars } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
@@ -43,6 +43,22 @@ import {
 } from "@/lib/rotation.config";
 
 type ModelKey = "ship" | "station";
+class StationErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("[station] failed to load or render /models/station.glb", error);
+  }
+
+  render() {
+    return this.state.hasError ? null : this.props.children;
+  }
+}
+
 type RotationMotion = {
   pointerId: number | null;
   previous: { x: number; y: number; time: number } | null;
@@ -574,7 +590,13 @@ function FlightShip({
     <>
       <group ref={stationGroup}>
         <group ref={stationUserGroup}>
-          {stationReady && stationEnabled && <Suspense fallback={null}><StationModel onSlowFrame={() => setStationEnabled(false)} /></Suspense>}
+          {stationReady && stationEnabled && (
+            <StationErrorBoundary>
+              <Suspense fallback={null}>
+                <StationModel onSlowFrame={() => setStationEnabled(false)} />
+              </Suspense>
+            </StationErrorBoundary>
+          )}
         </group>
       </group>
       <group ref={group}>
