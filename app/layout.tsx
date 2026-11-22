@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Fira_Code, IBM_Plex_Sans, Shippori_Mincho } from "next/font/google";
+import { Chakra_Petch, Fira_Code, IBM_Plex_Sans } from "next/font/google";
 import { profile } from "@/content/profile";
 import { SiteNav } from "@/components/site-nav";
 import { siteUrl } from "@/lib/site-url";
 import "./globals.css";
 
-const shipporiMincho = Shippori_Mincho({
-  variable: "--font-shippori-mincho",
+const chakraPetch = Chakra_Petch({
+  variable: "--font-chakra-petch",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
@@ -41,13 +41,13 @@ export const metadata: Metadata = {
     siteName: `${profile.name} portfolio`,
     title: `${profile.name} | ${profile.role}`,
     description: `${profile.headline} ${profile.subline}`,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "An original amber dragon scroll on a dark background" }],
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "An original amber orbital star and ship on a dark background" }],
   },
   twitter: {
     card: "summary_large_image",
     title: `${profile.name} | ${profile.role}`,
     description: `${profile.headline} ${profile.subline}`,
-    images: [{ url: "/opengraph-image", alt: "An original amber dragon scroll on a dark background" }],
+    images: [{ url: "/opengraph-image", alt: "An original amber orbital star and ship on a dark background" }],
   },
   robots: { index: true, follow: true },
 };
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${shipporiMincho.variable} ${ibmPlexSans.variable} ${firaCode.variable}`}>
+      <body className={`${chakraPetch.variable} ${ibmPlexSans.variable} ${firaCode.variable}`}>
         <a className="skip-link" href="#main-content">Skip to content</a>
         <SiteNav />
         {children}

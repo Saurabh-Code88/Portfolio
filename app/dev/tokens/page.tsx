@@ -1,11 +1,12 @@
 const colors = [
-  { name: "Background", variable: "--bg", value: "#0d0500", usage: "Page background" },
-  { name: "Surface", variable: "--surface", value: "#1a0a00", usage: "Panels and scroll cards" },
-  { name: "Raised surface", variable: "--surface-2", value: "#2a1200", usage: "Hover and raised surfaces" },
+  { name: "Background", variable: "--bg", value: "#05070a", usage: "Space-black page background" },
+  { name: "Surface", variable: "--surface", value: "#101820", usage: "Panels and surfaces" },
+  { name: "Raised surface", variable: "--surface-2", value: "#182635", usage: "Hover and raised surfaces" },
   { name: "Amber", variable: "--amber", value: "#e8a045", usage: "Headings, key links and primary accent" },
   { name: "Rust", variable: "--rust", value: "#c47a20", usage: "Borders and secondary accent" },
   { name: "Ember", variable: "--ember", value: "#7a3d00", usage: "Muted lines and disabled states" },
   { name: "Ink", variable: "--ink", value: "#f3e3c8", usage: "Body text" },
+  { name: "Ion", variable: "--ion", value: "#6cb8ff", usage: "Sparse HUD accents and starfield details" },
 ];
 
 export default function TokensPage() {
@@ -53,7 +54,7 @@ export default function TokensPage() {
         </h2>
         <div className="space-y-4">
           <article className="rounded-2xl border border-rust bg-surface p-5 sm:p-7">
-            <p className="mb-3 font-mono text-sm text-amber">Display · Shippori Mincho</p>
+            <p className="mb-3 font-mono text-sm text-amber">Display · Chakra Petch</p>
             <h3 className="text-3xl leading-snug text-ink sm:text-4xl">
               Thoughtful systems make reliable products.
             </h3>

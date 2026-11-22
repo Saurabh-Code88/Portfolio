@@ -2,14 +2,15 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0d0500;
-  --surface: #1a0a00;
-  --surface-2: #2a1200;
+  --bg: #05070a;
+  --surface: #101820;
+  --surface-2: #182635;
   --amber: #e8a045;
   --rust: #c47a20;
   --ember: #7a3d00;
   --ink: #f3e3c8;
   --ink-muted: #c9b69b;
+  --ion: #6cb8ff;
   --line: rgb(196 122 32 / 28%);
 }
 
@@ -20,8 +21,9 @@
   --color-amber: var(--amber);
   --color-rust: var(--rust);
   --color-ember: var(--ember);
+  --color-ion: var(--ion);
   --color-ink: var(--ink);
-  --font-display: var(--font-shippori-mincho);
+  --font-display: var(--font-chakra-petch);
   --font-sans: var(--font-ibm-plex-sans);
   --font-mono: var(--font-fira-code);
 }
@@ -49,8 +51,9 @@ body::before {
   position: fixed;
   z-index: -1;
   inset: 0;
-  background-image: linear-gradient(rgb(232 160 69 / 2.5%) 1px, transparent 1px), linear-gradient(90deg, rgb(232 160 69 / 2.5%) 1px, transparent 1px);
-  background-size: 48px 48px;
+  background-image: radial-gradient(circle, rgb(108 184 255 / 28%) 1px, transparent 1.4px), radial-gradient(circle, rgb(232 160 69 / 18%) 1px, transparent 1.4px);
+  background-position: 0 0, 17px 23px;
+  background-size: 74px 74px, 113px 113px;
   content: "";
   mask-image: linear-gradient(to bottom, black, transparent 65%);
   pointer-events: none;
@@ -68,7 +71,7 @@ body::before {
   gap: 24px;
   margin: 0 auto;
   border-bottom: 1px solid var(--line);
-  background: rgb(13 5 0 / 94%);
+  background: rgb(5 7 10 / 94%);
   backdrop-filter: blur(14px);
 }
 
@@ -137,7 +140,7 @@ body::before {
 h1,
 h2,
 h3 {
-  font-family: var(--font-shippori-mincho), serif;
+  font-family: var(--font-chakra-petch), sans-serif;
   font-weight: 600;
   line-height: 1.25;
 }
@@ -182,39 +185,346 @@ pre {
   width: min(100%, 1280px);
 }
 
-.hero-scroll {
+.hero-panel {
   position: relative;
   min-height: clamp(650px, 82svh, 780px);
-  clip-path: inset(0 0 86% 0 round 24px);
   overflow: hidden;
   isolation: isolate;
   border-radius: 24px;
+  border: 1px solid rgb(108 184 255 / 18%);
   background: var(--surface);
   box-shadow: 0 28px 90px rgb(0 0 0 / 28%);
 }
 
-.hero-scroll__art {
+/* ── When the 3D canvas is active, hero panel becomes see-through ── */
+.space-canvas-active .hero-panel {
+  background: transparent;
+  box-shadow: none;
+}
+
+.space-background {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+.space-background__image,
+.space-background__vignette,
+.space-background__stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.space-background__image {
+  inset: -3%;
+  background-image: url("/backgrounds/space-bg.jpg");
+  background-position: center;
+  background-size: cover;
+  opacity: 0.78;
+}
+
+.space-background__vignette {
+  z-index: 1;
+  background: radial-gradient(ellipse at 50% 45%, transparent 8%, rgb(5 7 10 / 20%) 60%, rgb(5 7 10 / 70%) 120%), linear-gradient(180deg, rgb(5 7 10 / 18%), transparent 34%, rgb(5 7 10 / 38%));
+}
+
+.space-background__stars {
+  z-index: 2;
+  background-repeat: repeat;
+}
+
+.space-background__stars--far {
+  opacity: 0.34;
+  background-image: radial-gradient(circle, rgb(108 184 255 / 65%) 0 1px, transparent 1.6px), radial-gradient(circle, rgb(232 160 69 / 42%) 0 1px, transparent 1.6px);
+  background-size: 81px 81px, 131px 131px;
+  background-position: 2px 16px, 29px 43px;
+}
+
+.space-background__stars--near {
+  opacity: 0.2;
+  background-image: radial-gradient(circle, rgb(243 227 200 / 75%) 0 1px, transparent 1.8px);
+  background-size: 167px 167px;
+  background-position: 43px 7px;
+}
+
+.space-background--image .space-background__image { display: block; }
+.space-background--procedural .space-background__image { display: none; }
+
+.space-background--procedural::before {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse 42% 9% at 70% 47%, rgb(232 160 69 / 42%) 0%, rgb(196 122 32 / 22%) 28%, transparent 72%), radial-gradient(ellipse 32% 34% at 70% 47%, transparent 56%, rgb(232 160 69 / 18%) 59%, transparent 66%);
+  content: "";
+}
+
+.space-background--active .space-background__stars { display: none; }
+
+.space-background--active .space-background__image {
+  transform: translate3d(var(--space-pointer-x, 0px), var(--space-pointer-y, 0px), 0) scale(1.04);
+  transition: transform 700ms ease-out;
+}
+
+.space-background canvas {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+
+.space-background--active ~ .hero-page .hero-starfield { display: none; }
+
+/* Left-side dark scrim behind text column for AA contrast; right half stays clear for the ship. */
+.space-canvas-active .hero-panel::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(5 7 10 / 78%) 0%, rgb(5 7 10 / 60%) 42%, transparent 62%);
+  content: "";
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Hide the dot-grid overlay when the 3D canvas is active so the ship shows through. */
+.space-canvas-active::before {
+  display: none;
+}
+
+/* ── Translucent glass panels for sections so the scene shows through ── */
+.space-canvas-active .toolkit-group,
+.space-canvas-active .project-card,
+.space-canvas-active .research-panel,
+.space-canvas-active .experience-entry,
+.space-canvas-active .compact-entry,
+.space-canvas-active .contact-section {
+  background: rgb(16 24 32 / 65%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.space-canvas-active .content-section + .content-section {
+  border-top-color: rgb(196 122 32 / 8%);
+}
+
+.space-canvas-active .diagram-scroll {
+  background: rgb(24 38 53 / 72%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.hero-starfield {
   position: absolute;
   z-index: -1;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.hero-scroll__dragon {
-  opacity: 0.62;
-  transform-box: fill-box;
-  transform-origin: center;
-  transform: perspective(520px) rotateX(var(--dragon-tilt-x, 0deg)) rotateY(var(--dragon-tilt-y, 0deg)) translate3d(var(--dragon-x, 0px), var(--dragon-y, 0px), 0);
-  transition: transform 220ms cubic-bezier(.2, .8, .2, 1);
+.hero-starfield__layer {
+  position: absolute;
+  inset: -8%;
+  background-repeat: repeat;
+  will-change: transform;
 }
 
-.hero-scroll__content {
+.hero-starfield__layer--far {
+  opacity: 0.52;
+  background-image: radial-gradient(circle, var(--ion) 0 1px, transparent 1.7px), radial-gradient(circle, var(--amber) 0 1px, transparent 1.8px);
+  background-position: 0 0, 29px 41px;
+  background-size: 91px 91px, 137px 137px;
+  animation: star-drift-far 90s linear infinite;
+}
+
+.hero-starfield__layer--near {
+  opacity: 0.36;
+  background-image: radial-gradient(circle, var(--ink) 0 1.2px, transparent 2px), radial-gradient(circle, var(--ion) 0 1px, transparent 1.8px);
+  background-position: 19px 13px, 57px 63px;
+  background-size: 157px 157px, 211px 211px;
+  animation: star-drift-near 48s linear infinite;
+}
+
+.ship-preview-page {
+  width: min(100% - 40px, 1280px);
+  min-height: calc(100vh - 70px);
+  margin: 0 auto;
+  padding: 42px 0 72px;
+}
+
+.ship-preview__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.ship-preview__eyebrow {
+  margin: 0 0 8px;
+  color: var(--ion);
+  font-family: var(--font-fira-code), monospace;
+  font-size: 0.82rem;
+}
+
+.ship-preview__header h1 {
+  margin: 0;
+  color: var(--amber);
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.ship-preview__header p:not(.ship-preview__eyebrow) {
+  max-width: 65ch;
+  margin: 10px 0 0;
+  color: var(--ink-muted);
+}
+
+.ship-preview__header > a {
+  flex: 0 0 auto;
+  color: var(--amber);
+}
+
+.ship-preview__frame {
+  height: min(65vh, 680px);
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--bg);
+}
+
+.ship-preview__frame canvas {
+  display: block;
+}
+
+.ship-preview__loading {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.ship-end-label {
+  display: block;
+  padding: 3px 7px;
+  border: 1px solid rgb(108 184 255 / 45%);
+  border-radius: 6px;
+  background: rgb(5 7 10 / 86%);
+  color: var(--ion);
+  font-family: var(--font-fira-code), monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ship-preview__facts {
+  margin-top: 20px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.ship-preview__facts h2 {
+  margin: 0 0 12px;
+  color: var(--amber);
+  font-size: 1.25rem;
+}
+
+.ship-preview__facts ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 600px) {
+  .ship-preview-page { width: min(100% - 32px, 1280px); padding-top: 26px; }
+  .ship-preview__header { align-items: start; flex-direction: column; gap: 12px; }
+  .ship-preview__frame { height: 55vh; min-height: 340px; }
+}
+
+@media (min-width: 601px) and (max-width: 1023px) {
+  .hero-ask { width: min(100%, 360px); }
+  .hero-ship-trigger { right: 12%; width: 25%; height: 36%; }
+}
+
+@keyframes star-drift-far {
+  to { transform: translate3d(-2.5%, 2%, 0); }
+}
+
+@keyframes star-drift-near {
+  to { transform: translate3d(2%, -3%, 0); }
+}
+
+.hero-panel__content {
+  position: relative;
+  z-index: 2;
   display: flex;
   min-height: inherit;
   flex-direction: column;
   justify-content: center;
+  /* On desktop with the 3D ship, constrain text to the left ~55% so the right half is clear. */
+  max-width: 100%;
   padding: clamp(120px, 16vh, 156px) clamp(38px, 8vw, 110px);
+}
+
+.space-canvas-active .hero-panel__content {
+  max-width: 55%;
+}
+
+.hero-ship-trigger {
+  position: absolute;
+  z-index: 3;
+  top: 15%;
+  right: 2%;
+  width: 44%;
+  height: 65%;
+  visibility: hidden;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.space-canvas-active .hero-ship-trigger {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.hero-ship-trigger:focus-visible {
+  border: 1px solid var(--ion);
+  border-radius: 999px;
+  background: rgb(108 184 255 / 8%);
+}
+
+.hero-skip-flight {
+  position: absolute;
+  z-index: 4;
+  right: 24px;
+  bottom: 18px;
+  visibility: hidden;
+  color: var(--ion);
+  font-family: var(--font-fira-code), monospace;
+  font-size: 0.78rem;
+  text-decoration-color: rgb(108 184 255 / 55%);
+  text-underline-offset: 4px;
+}
+
+.space-canvas-active .hero-skip-flight { visibility: visible; }
+.hero-skip-flight:focus-visible { border-radius: 4px; }
+
+.space-canvas-active .space-background__image {
+  will-change: transform;
+}
+
+.space-canvas-active .space-background__stars { display: none; }
+
+.space-background-present main > .hero-page,
+.space-background-present main > .content-section {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-kicker {
@@ -372,7 +682,7 @@ pre {
 .toolkit-group h3 {
   margin: 0;
   color: var(--amber);
-  font-family: var(--font-shippori-mincho), serif;
+  font-family: var(--font-chakra-petch), sans-serif;
   font-size: 1.25rem;
 }
 
@@ -399,7 +709,7 @@ pre {
   padding: 5px 12px 5px 6px;
   border: 1px solid rgb(196 122 32 / 20%);
   border-radius: 999px;
-  background: rgb(13 5 0 / 55%);
+  background: rgb(16 24 32 / 55%);
   color: var(--ink);
   font-size: 0.85rem;
   transition: color 180ms ease, border-color 180ms ease, background 180ms ease, transform 180ms ease;
@@ -525,7 +835,7 @@ pre {
 
 .diagram-node-title {
   fill: var(--ink);
-  font-family: var(--font-shippori-mincho), serif;
+  font-family: var(--font-chakra-petch), sans-serif;
   font-size: 17px;
   font-weight: 600;
 }
@@ -739,7 +1049,7 @@ pre {
 
 .education-column h3 {
   margin-bottom: 0;
-  font-family: var(--font-shippori-mincho), serif;
+  font-family: var(--font-chakra-petch), sans-serif;
   font-size: 1.45rem;
 }
 
@@ -842,14 +1152,7 @@ pre {
     transition-duration: 0.01ms !important;
   }
 
-  .hero-scroll {
-    clip-path: inset(0 0 0% 0 round 24px);
-  }
-
-  .hero-scroll__dragon {
-    transform: none;
-    transition-duration: 0.01ms;
-  }
+  .hero-starfield__layer { animation: none; }
 
   .toolkit-group:hover,
   .tool-item:hover .tool-item__surface {
@@ -866,7 +1169,8 @@ pre {
     width: 100%;
     min-height: 62px;
     gap: 8px;
-    padding: 0 16px;
+    padding: 8px 16px;
+    flex-wrap: wrap;
   }
 
   .site-brand {
@@ -879,16 +1183,18 @@ pre {
   }
 
   .site-nav {
-    gap: 12px;
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 18px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+
+  .site-nav::-webkit-scrollbar { display: none; }
 
   .site-nav a {
     font-size: 0.76rem;
-  }
-
-  .site-nav a:nth-child(3),
-  .site-nav a:nth-child(4) {
-    display: none;
   }
 
   .site-header__contact {
@@ -898,17 +1204,14 @@ pre {
     font-size: 0.75rem;
   }
 
-  .hero-scroll {
+  .hero-panel {
     min-height: 720px;
     border-radius: 18px;
   }
 
-  .hero-scroll__content {
+  .hero-panel__content {
     padding: 118px 34px 118px;
-  }
-
-  .hero-scroll__dragon {
-    opacity: 0.24;
+    max-width: 100%;
   }
 
   .hero h1 {
