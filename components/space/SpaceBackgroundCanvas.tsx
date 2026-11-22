@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Sparkles, Stars } from "@react-three/drei";
+import { Environment, Lightformer, Sparkles, Stars } from "@react-three/drei";
 import type { MotionValue } from "framer-motion";
 import {
   BufferAttribute,
@@ -20,6 +20,7 @@ import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "
 import {
   HERO_SHIP_POSITION,
   HERO_SHIP_ROTATION,
+  HERO_SHIP_SCALE,
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
 } from "@/lib/ship.config";
@@ -173,13 +174,16 @@ function FlightShip({
 
     if (heroBlend < 1) {
       // ── Hero parking position with idle bob ──
+      const heroAspectScale = state.viewport.aspect / 1.6;
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
       shipTarget.set(
-        HERO_SHIP_POSITION[0] + pointer.current.x * -0.06,
+        HERO_SHIP_POSITION[0] * heroAspectScale + pointer.current.x * -0.06,
         HERO_SHIP_POSITION[1] + bobY + pointer.current.y * -0.04,
         HERO_SHIP_POSITION[2],
       );
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
+      const heroScale = MathUtils.lerp(1, HERO_SHIP_SCALE * heroAspectScale, 1 - heroBlend);
+      group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, heroScale, 4, delta));
 
       // Three-quarter view orientation + pointer tilt
       pointerEuler.set(pointer.current.y * 0.06, pointer.current.x * 0.08, 0);
@@ -221,6 +225,7 @@ function FlightShip({
 
     // ── Scroll flight (existing path) ──
     const sample = sampleFlight(progress.get(), stops.current);
+    group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, 1, 4, delta));
     shipTarget.copy(sample.position);
     shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * 0.035 + pointer.current.y * -0.04;
     group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 4.2));
@@ -306,9 +311,14 @@ function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
 
   return (
     <>
-      <ambientLight intensity={0.62} />
-      <directionalLight position={[4, 5, 3]} intensity={1.65} color="#fff0dd" />
-      <pointLight position={[-4, 2, -1]} intensity={0.8} color="#6cb8ff" distance={16} />
+      <ambientLight intensity={0.24} />
+      <directionalLight position={[-2, 3, -4]} intensity={2.1} color="#e8a045" />
+      <pointLight position={[3, 1.5, -4]} intensity={1.25} color="#6cb8ff" distance={14} />
+      <Environment resolution={128} background={false}>
+        <Lightformer form="rect" intensity={0.7} color="#fff0d9" position={[0, 4, 1]} scale={[6, 1.4, 1]} />
+        <Lightformer form="rect" intensity={1.15} color="#6cb8ff" position={[4, 1, -3]} scale={[1.2, 4, 1]} />
+        <Lightformer form="rect" intensity={0.9} color="#e8a045" position={[-4, 0, -3]} scale={[1.4, 3, 1]} />
+      </Environment>
       <group ref={farStars}>
         <Stars radius={34} depth={36} count={480} factor={2.1} saturation={0.18} fade speed={0.04} />
       </group>

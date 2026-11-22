@@ -94,3 +94,12 @@ Current homepage order:
 
 ## Definition of done (per phase)
 `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` all pass; the page works at 375px and 1280px; no console errors.
+
+## Working rules for agents (context discipline)
+- One task per session. Do only the step you are given, then stop.
+- Start by reading PROGRESS.md and this file only. Do not re-audit the repo or read docs/.
+- Never open or print: node_modules, .next, package-lock.json, *.glb, images, public/models, assets-src. Search with rg first, then read only the lines you need.
+- Keep command output short (tail -n 30). Run lint, typecheck and build once at the end, not after every edit.
+- Do not paste whole files into the chat. Describe changes briefly.
+- Commit after each completed step. Before stopping, rewrite PROGRESS.md (done, next, decisions, constants to tune) in under 20 lines.
+- If the session is getting long, stop at a clean point: commit, update PROGRESS.md, and tell me to start a fresh session.
