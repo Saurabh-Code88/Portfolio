@@ -20,7 +20,6 @@ import { StationModel } from "@/components/station/StationModel";
 import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "@/lib/flightPath";
 import {
   HERO_SHIP_POSITION,
-  HERO_SHIP_ROTATION,
   HERO_SHIP_SCALE,
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
@@ -97,7 +96,10 @@ function FlightShip({
   const pointer = useRef({ x: 0, y: 0 });
   const rollStart = useRef<number | null>(null);
   const lastRoll = useRef(0);
-  const skipFlight = useRef(false);
+  const displayedProgress = useRef(0);
+  const progressInitialized = useRef(false);
+  const navFlight = useRef<{ from: number; to: number; startedAt: number; duration: number } | null>(null);
+  const expectedScroll = useRef<number | null>(null);
   const enginePower = useRef(1);
   const stops = useRef(FLIGHT_SECTION_IDS.map((_, index) => index / (FLIGHT_SECTION_IDS.length - 1)));
   const orientation = useMemo(() => new Quaternion(), []);
@@ -121,12 +123,7 @@ function FlightShip({
   const dockingPulse = useRef<Group>(null);
 
   // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
-  const heroQuat = useMemo(() => {
-    const q = new Quaternion();
-    const e = new Euler(HERO_SHIP_ROTATION[0], HERO_SHIP_ROTATION[1], HERO_SHIP_ROTATION[2]);
-    q.setFromEuler(e);
-    return q;
-  }, []);
+  const heroQuat = useMemo(() => new Quaternion(), []);
   const dockQuat = useMemo(() => new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0)), []);
   const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
 
@@ -146,6 +143,56 @@ function FlightShip({
   }, []);
 
   useEffect(() => {
+    const requestFlight = (sectionId: string) => {
+      const sectionIndex = FLIGHT_SECTION_IDS.indexOf(sectionId as (typeof FLIGHT_SECTION_IDS)[number]);
+      if (sectionIndex < 0) return;
+      navFlight.current = {
+        from: displayedProgress.current,
+        to: stops.current[sectionIndex] ?? 0,
+        startedAt: performance.now(),
+        duration: 1500,
+      };
+    };
+    const handleClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest<HTMLAnchorElement>("a[href]");
+      if (!link || link.target || link.hasAttribute("download")) return;
+      const url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin || url.pathname !== window.location.pathname || !url.hash) return;
+      const sectionId = decodeURIComponent(url.hash.slice(1));
+      if (!FLIGHT_SECTION_IDS.includes(sectionId as (typeof FLIGHT_SECTION_IDS)[number])) return;
+      const section = document.getElementById(sectionId);
+      if (!section) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (window.location.hash !== url.hash) window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      requestFlight(sectionId);
+    };
+    const cancelFlight = () => { navFlight.current = null; };
+    const handleScroll = () => {
+      const expected = expectedScroll.current;
+      if (navFlight.current && expected !== null && Math.abs(window.scrollY - expected) > 80) cancelFlight();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) cancelFlight();
+    };
+    document.addEventListener("click", handleClick, true);
+    window.addEventListener("wheel", cancelFlight, { passive: true });
+    window.addEventListener("touchstart", cancelFlight, { passive: true });
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener("click", handleClick, true);
+      window.removeEventListener("wheel", cancelFlight);
+      window.removeEventListener("touchstart", cancelFlight);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
     const handlePointer = (event: PointerEvent) => {
       if (event.pointerType === "touch") return;
       pointer.current.x = (event.clientX / window.innerWidth - 0.5) * 2;
@@ -157,38 +204,45 @@ function FlightShip({
       lastRoll.current = now;
       rollStart.current = now;
     };
-    const handleSkip = () => {
-      skipFlight.current = true;
-      ready.current = true;
-      rollStart.current = null;
-    };
     window.addEventListener("pointermove", handlePointer, { passive: true });
     window.addEventListener("portfolio:ship-roll", handleRoll);
-    window.addEventListener("portfolio:skip-flight", handleSkip);
     return () => {
       window.removeEventListener("pointermove", handlePointer);
       window.removeEventListener("portfolio:ship-roll", handleRoll);
-      window.removeEventListener("portfolio:skip-flight", handleSkip);
     };
   }, [ready]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
-    if (skipFlight.current) {
-      group.current.visible = false;
-      if (stationGroup.current) stationGroup.current.visible = false;
-      if (trail.current) trail.current.visible = false;
-      warp.current = 0;
-      enginePower.current = 1;
-      if (state.camera instanceof PerspectiveCamera) {
-        state.camera.fov = MathUtils.damp(state.camera.fov, 48, 3.4, delta);
-        state.camera.updateProjectionMatrix();
-      }
-      return;
+    if (!progressInitialized.current) {
+      displayedProgress.current = progress.get();
+      progressInitialized.current = true;
     }
-
-    const p = progress.get();
-
+    let requestedProgress = progress.get();
+    const flight = navFlight.current;
+    let flightElapsed = 1;
+    if (flight) {
+      flightElapsed = Math.min(1, (performance.now() - flight.startedAt) / flight.duration);
+      const eased = flightElapsed < 0.5 ? 4 * flightElapsed * flightElapsed * flightElapsed : 1 - Math.pow(-2 * flightElapsed + 2, 3) / 2;
+      requestedProgress = MathUtils.lerp(flight.from, flight.to, eased);
+      // The click path already has a cubic ease; use that exact value for both
+      // scroll and the ship so their movement stays in lockstep.
+      displayedProgress.current = requestedProgress;
+    } else {
+      displayedProgress.current = MathUtils.damp(displayedProgress.current, requestedProgress, 12, delta);
+    }
+    const p = displayedProgress.current;
+    if (flight) {
+      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      expectedScroll.current = p * maxScroll;
+      window.scrollTo({ top: expectedScroll.current, behavior: "instant" });
+      if (flightElapsed >= 1) {
+        navFlight.current = null;
+        expectedScroll.current = null;
+      }
+    } else {
+      expectedScroll.current = null;
+    }
     // Hero dwell: when near top of page, park in hero right half
     const heroDwellEnd = stops.current[1] ?? 0.1; // end of hero → start of toolkit
     const heroBlend = MathUtils.clamp(p / Math.max(0.001, heroDwellEnd * 0.5), 0, 1);
@@ -255,6 +309,8 @@ function FlightShip({
       }
 
       // Three-quarter view orientation + pointer tilt
+      direction.copy(flightCurve.getTangent(0)).normalize();
+      heroQuat.setFromUnitVectors(localForward, direction);
       pointerEuler.set(pointer.current.y * 0.06, pointer.current.x * 0.08, 0);
       pointerRotation.setFromEuler(pointerEuler);
 
@@ -294,7 +350,7 @@ function FlightShip({
     }
 
     // ── Scroll flight (existing path) ──
-    const sample = sampleFlight(progress.get(), stops.current);
+    const sample = sampleFlight(p, stops.current);
     group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, 1, 4, delta));
     shipTarget.copy(sample.position);
     shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * 0.035 + pointer.current.y * -0.04;

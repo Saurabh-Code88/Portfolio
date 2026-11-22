@@ -23,7 +23,6 @@ export function Hero() {
           <a
             href="#toolkit"
             className="hero-skip-flight"
-            onClick={() => window.dispatchEvent(new Event("portfolio:skip-flight"))}
           >
             Skip the flight
           </a>

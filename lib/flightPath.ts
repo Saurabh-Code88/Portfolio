@@ -45,8 +45,9 @@ export function sampleFlight(progress: number, stops: readonly number[] = FLIGHT
   const start = stops[segment];
   const end = Math.max(start + 0.0001, stops[segment + 1]);
   const local = Math.max(0, Math.min(1, (bounded - start) / (end - start)));
-  const eased = local * local * (3 - 2 * local);
-  const curveProgress = (segment + eased) / (stops.length - 1);
+  // Section stops identify where the ship is in the document. They must not
+  // ease independently: that creates a stop at every section boundary.
+  const curveProgress = (segment + local) / (stops.length - 1);
   return {
     curveProgress,
     warp: Math.sin(Math.PI * local),
