@@ -434,6 +434,13 @@ html.model-grab-active * {
   gap: 8px;
 }
 
+.station-preview__controls h2 {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  color: var(--amber);
+  font-size: 1rem;
+}
+
 .station-preview__presets button {
   padding: 7px 12px;
   border: 1px solid var(--line);

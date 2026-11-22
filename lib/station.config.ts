@@ -41,3 +41,24 @@ export const STATION_POD_GLOW_OFFSETS: readonly (readonly [number, number, numbe
   [0.78, 0.08, 0],
 ];
 export const STATION_DOCK_LIGHT_OFFSET: readonly [number, number, number] = [0, 0.28, 0];
+
+// Red navigation lights in centred station-model coordinates.
+export const STATION_ANTENNA_GLOW_OFFSETS: readonly (readonly [number, number, number])[] = [
+  [0, 0.56, 0],
+];
+export const STATION_RIM_GLOW_COUNT = 16;
+export const STATION_RIM_GLOW_RADIUS = 2.2;
+export const STATION_RIM_GLOW_HEIGHT = 0.04;
+
+export function getStationRimGlowOffsets(
+  radius = STATION_RIM_GLOW_RADIUS,
+  height = STATION_RIM_GLOW_HEIGHT,
+  count = STATION_RIM_GLOW_COUNT,
+): readonly (readonly [number, number, number])[] {
+  return Array.from({ length: Math.max(1, Math.floor(count)) }, (_, index) => {
+    const angle = (index / Math.max(1, Math.floor(count))) * Math.PI * 2;
+    return [Math.sin(angle) * radius, height, Math.cos(angle) * radius] as const;
+  });
+}
+
+export const STATION_RIM_GLOW_OFFSETS = getStationRimGlowOffsets();

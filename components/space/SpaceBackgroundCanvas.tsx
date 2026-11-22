@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, Sparkles, Stars } from "@react-three/drei";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import type { MotionValue } from "framer-motion";
 import {
   BufferAttribute,
@@ -25,6 +26,7 @@ import {
   HERO_SHIP_SCALE,
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
+  LOW_POWER_CORE_THRESHOLD,
 } from "@/lib/ship.config";
 import {
   DOCK_HOVER_HEIGHT,
@@ -597,6 +599,7 @@ function FlightShip({
 }
 
 function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
+  const [bloomEnabled, setBloomEnabled] = useState(false);
   const loaded = useRef(false);
   const warp = useRef(0);
   const farStars = useRef<Group>(null);
@@ -611,6 +614,13 @@ function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
     };
     window.addEventListener("pointermove", onPointer, { passive: true });
     return () => window.removeEventListener("pointermove", onPointer);
+  }, []);
+
+  useEffect(() => {
+    const lowPower = typeof navigator.hardwareConcurrency === "number"
+      && navigator.hardwareConcurrency <= LOW_POWER_CORE_THRESHOLD;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setBloomEnabled(!lowPower && !reducedMotion);
   }, []);
 
   useFrame((_, delta) => {
@@ -642,6 +652,11 @@ function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
       </group>
       <HyperspaceStreaks ready={loaded} warp={warp} />
       <FlightShip ready={loaded} progress={progress} warp={warp} />
+      {bloomEnabled && (
+        <EffectComposer>
+          <Bloom luminanceThreshold={1} luminanceSmoothing={0.08} intensity={0.8} mipmapBlur />
+        </EffectComposer>
+      )}
     </>
   );
 }
