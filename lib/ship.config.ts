@@ -22,6 +22,12 @@ export const HERO_SHIP_HEADER_HEIGHT = 68;
 export const HERO_SHIP_TOP_CLEARANCE = 0.035;
 export const HERO_SHIP_CAMERA_TARGET_Y = 0.55;
 export const SHIP_IDLE_SPIN = 0.15;
+export const PARK_X = 0.9;
+export const PARK_Y = 0.5;
+export const PARK_SCALE = 0.58;
+export const PARK_DEPTH = 4;
+export const PARK_HOVER_AMPLITUDE = 0.025;
+export const READOUT_FLIGHT_DURATION_MS = 1500;
 
 export const HERO_SHIP_BREAKPOINT_OVERRIDES = {
   desktop: { minWidth: 1024, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },

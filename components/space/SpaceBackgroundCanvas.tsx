@@ -20,7 +20,7 @@ import {
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel } from "@/components/station/StationModel";
-import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "@/lib/flightPath";
+import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleFlight } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
   HERO_SHIP_CAMERA_TARGET_Y,
@@ -32,6 +32,12 @@ import {
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
   LOW_POWER_CORE_THRESHOLD,
+  PARK_DEPTH,
+  PARK_HOVER_AMPLITUDE,
+  PARK_SCALE,
+  PARK_X,
+  PARK_Y,
+  READOUT_FLIGHT_DURATION_MS,
 } from "@/lib/ship.config";
 import {
   DOCK_HOVER_HEIGHT,
@@ -150,7 +156,7 @@ function FlightShip({
   const lastRoll = useRef(0);
   const displayedProgress = useRef(0);
   const progressInitialized = useRef(false);
-  const navFlight = useRef<{ from: number; to: number; startedAt: number; duration: number } | null>(null);
+  const navFlight = useRef<{ from: number; to: number; sectionId: (typeof FLIGHT_SECTION_IDS)[number]; startedAt: number; duration: number } | null>(null);
   const expectedScroll = useRef<number | null>(null);
   const rotationMotion = useRef<Record<ModelKey, RotationMotion>>({ ship: createRotationMotion(), station: createRotationMotion() });
   const suppressNextClick = useRef(false);
@@ -184,6 +190,7 @@ function FlightShip({
   const dockOffset = useMemo(() => new Vector3(), []);
   const stationEuler = useMemo(() => new Euler(), []);
   const freePosition = useMemo(() => new Vector3(), []);
+  const parkLocalPosition = useMemo(() => new Vector3(), []);
 
   // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
   const heroQuat = useMemo(() => new Quaternion(), []);
@@ -329,11 +336,17 @@ function FlightShip({
     const requestFlight = (sectionId: string) => {
       const sectionIndex = FLIGHT_SECTION_IDS.indexOf(sectionId as (typeof FLIGHT_SECTION_IDS)[number]);
       if (sectionIndex < 0) return;
+      const targetProgress = stops.current[sectionIndex] ?? 0;
+      if (Math.abs(displayedProgress.current - targetProgress) < 0.002) {
+        navFlight.current = null;
+        return;
+      }
       navFlight.current = {
         from: displayedProgress.current,
-        to: stops.current[sectionIndex] ?? 0,
+        to: targetProgress,
+        sectionId: sectionId as (typeof FLIGHT_SECTION_IDS)[number],
         startedAt: performance.now(),
-        duration: 1500,
+        duration: READOUT_FLIGHT_DURATION_MS,
       };
     };
     const handleClick = (event: MouseEvent) => {
@@ -343,8 +356,9 @@ function FlightShip({
       const link = target.closest<HTMLAnchorElement>("a[href]");
       if (!link || link.target || link.hasAttribute("download")) return;
       const url = new URL(link.href, window.location.href);
-      if (url.origin !== window.location.origin || url.pathname !== window.location.pathname || !url.hash) return;
-      const sectionId = decodeURIComponent(url.hash.slice(1));
+      if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
+      const isHomeReturn = link.classList.contains("site-brand") && window.location.pathname === "/" && window.scrollY > 0 && !url.hash;
+      const sectionId = url.hash ? decodeURIComponent(url.hash.slice(1)) : isHomeReturn ? "hero" : "";
       if (!FLIGHT_SECTION_IDS.includes(sectionId as (typeof FLIGHT_SECTION_IDS)[number])) return;
       const section = document.getElementById(sectionId);
       if (!section) return;
@@ -353,7 +367,10 @@ function FlightShip({
       if (window.location.hash !== url.hash) window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
       requestFlight(sectionId);
     };
-    const cancelFlight = () => { navFlight.current = null; };
+    const cancelFlight = () => {
+      navFlight.current = null;
+      expectedScroll.current = null;
+    };
     const handleScroll = () => {
       const expected = expectedScroll.current;
       if (navFlight.current && expected !== null && Math.abs(window.scrollY - expected) > 80) cancelFlight();
@@ -509,7 +526,14 @@ function FlightShip({
       stationGroup.current.scale.setScalar(stationWorldScale);
     }
 
-    if (heroBlend < 1) {
+    flightProgressStore.publish({
+      sectionId: getFlightSectionId(p, stops.current),
+      progress: p,
+      isFlying: Boolean(flight),
+      isParked: !flight && heroBlend >= 1,
+    });
+
+    if (heroBlend < 1 && (!flight || flight.sectionId === "hero")) {
       // ── Hero parking position with idle bob ──
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
       dockedPosition.set(
@@ -574,23 +598,57 @@ function FlightShip({
       return;
     }
 
-    // ── Scroll flight (existing path) ──
+    // ── Flight or fixed viewport parking ──
     const sample = sampleFlight(p, stops.current);
-    group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, 1, 4, delta));
-    shipTarget.copy(sample.position);
-    shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * 0.035 + pointer.current.y * -0.04;
-    group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 4.2));
-    direction.copy(sample.tangent).normalize();
-    before.copy(flightCurve.getTangent(Math.max(0, sample.curveProgress - 0.012)));
-    after.copy(flightCurve.getTangent(Math.min(1, sample.curveProgress + 0.012)));
-    const curvature = before.x * after.y - before.y * after.x;
-    const bank = MathUtils.clamp(-curvature * 3.5, -0.34, 0.34);
-    orientation.setFromUnitVectors(localForward, direction);
-    bankRotation.setFromAxisAngle(localForward, bank);
-    pointerEuler.set(pointer.current.y * 0.08, pointer.current.x * 0.1, 0);
-    pointerRotation.setFromEuler(pointerEuler);
+    const camera = state.camera;
+    let flare = 0;
+    if (flight) {
+      group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, 1, 4, delta));
+      shipTarget.copy(sample.position);
+      shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * 0.035 + pointer.current.y * -0.04;
+      group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 4.2));
+      direction.copy(sample.tangent).normalize();
+      before.copy(flightCurve.getTangent(Math.max(0, sample.curveProgress - 0.012)));
+      after.copy(flightCurve.getTangent(Math.min(1, sample.curveProgress + 0.012)));
+      const curvature = before.x * after.y - before.y * after.x;
+      const bank = MathUtils.clamp(-curvature * 3.5, -0.34, 0.34);
+      orientation.setFromUnitVectors(localForward, direction);
+      bankRotation.setFromAxisAngle(localForward, bank);
+      pointerEuler.set(pointer.current.y * 0.08, pointer.current.x * 0.1, 0);
+      pointerRotation.setFromEuler(pointerEuler);
+      flare = sample.warp * 0.8;
+      warp.current = MathUtils.damp(warp.current, sample.warp, 5, delta);
+      if (trail.current) {
+        trail.current.visible = warp.current > 0.08;
+        trail.current.scale.setScalar(Math.max(0.001, warp.current));
+      }
+    } else {
+      // Keep the ship at a stable screen coordinate while the camera tracks
+      // the active section. Position is derived from the live camera frustum.
+      const perspectiveCamera = camera instanceof PerspectiveCamera ? camera : null;
+      if (perspectiveCamera) {
+        perspectiveCamera.updateMatrixWorld();
+        const depth = PARK_DEPTH;
+        const halfHeight = depth * Math.tan(perspectiveCamera.fov * Math.PI / 360);
+        parkLocalPosition.set(
+          (PARK_X * 2 - 1) * halfHeight * perspectiveCamera.aspect,
+          (1 - PARK_Y * 2) * halfHeight,
+          -depth,
+        );
+        shipTarget.copy(parkLocalPosition).applyMatrix4(perspectiveCamera.matrixWorld);
+      } else {
+        shipTarget.set(PARK_X * 8 - 4, 0, 0);
+      }
+      shipTarget.y += Math.sin(state.clock.elapsedTime * 0.7) * PARK_HOVER_AMPLITUDE;
+      group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 4.2));
+      group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, PARK_SCALE, 4, delta));
+      orientation.copy(dockQuat);
+      pointerEuler.set(0, 0, 0);
+      pointerRotation.setFromEuler(pointerEuler);
+      warp.current = MathUtils.damp(warp.current, 0, 5, delta);
+      if (trail.current) trail.current.visible = false;
+    }
 
-    let flare = sample.warp * 0.8;
     const roll = rollStart.current;
     if (roll !== null) {
       const rollProgress = Math.min(1, (performance.now() - roll) / 780);
@@ -600,16 +658,11 @@ function FlightShip({
     } else {
       rollRotation.identity();
     }
-    orientation.multiply(bankRotation).multiply(pointerRotation).multiply(rollRotation);
+    if (flight) orientation.multiply(bankRotation).multiply(pointerRotation).multiply(rollRotation);
+    else orientation.multiply(pointerRotation).multiply(rollRotation);
     group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
-    enginePower.current = MathUtils.damp(enginePower.current, 1 + flare, 5, delta);
-    warp.current = MathUtils.damp(warp.current, sample.warp, 5, delta);
-    if (trail.current) {
-      trail.current.visible = warp.current > 0.08;
-      trail.current.scale.setScalar(Math.max(0.001, warp.current));
-    }
+    enginePower.current = MathUtils.damp(enginePower.current, flight ? 1 + flare : 0.45, 5, delta);
 
-    const camera = state.camera;
     cameraTarget.set(sample.position.x * 0.3, sample.position.y * 0.24 + 0.55, 8 + sample.position.z * 0.2);
     camera.position.lerp(cameraTarget, 1 - Math.exp(-delta * 1.55));
     cameraLookAt.set(sample.position.x * 0.18, sample.position.y * 0.14, 0);
@@ -617,6 +670,17 @@ function FlightShip({
     if (camera instanceof PerspectiveCamera) {
       camera.fov = MathUtils.damp(camera.fov, 48 + sample.warp * 11, 3.4, delta);
       camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      if (!flight) {
+        const halfHeight = PARK_DEPTH * Math.tan(camera.fov * Math.PI / 360);
+        parkLocalPosition.set(
+          (PARK_X * 2 - 1) * halfHeight * camera.aspect,
+          (1 - PARK_Y * 2) * halfHeight,
+          -PARK_DEPTH,
+        );
+        group.current.position.copy(parkLocalPosition).applyMatrix4(camera.matrixWorld);
+        group.current.position.y += Math.sin(state.clock.elapsedTime * 0.7) * PARK_HOVER_AMPLITUDE;
+      }
     }
   });
 

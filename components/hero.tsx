@@ -8,7 +8,7 @@ export function Hero() {
   const resumeLink = profileContactLinks.find(({ download }) => download);
 
   return (
-    <section className="hero-page" aria-labelledby="hero-heading" data-flight-section="hero">
+    <section id="hero" className="hero-page" aria-labelledby="hero-heading" data-flight-section="hero">
       <div className="hero">
         <div className="hero-panel">
           <div className="hero-starfield" aria-hidden="true">

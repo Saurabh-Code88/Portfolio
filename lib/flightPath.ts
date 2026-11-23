@@ -15,6 +15,49 @@ export const FLIGHT_WAYPOINTS = [
 
 export const flightCurve = new CatmullRomCurve3(FLIGHT_WAYPOINTS, false, "catmullrom", 0.5);
 
+export type FlightSectionId = (typeof FLIGHT_SECTION_IDS)[number];
+export type FlightProgressSnapshot = {
+  sectionId: FlightSectionId;
+  progress: number;
+  isFlying: boolean;
+  isParked: boolean;
+};
+
+let flightProgressSnapshot: FlightProgressSnapshot = {
+  sectionId: "hero",
+  progress: 0,
+  isFlying: false,
+  isParked: false,
+};
+const flightProgressListeners = new Set<() => void>();
+
+export const flightProgressStore = {
+  getSnapshot: () => flightProgressSnapshot,
+  subscribe(listener: () => void) {
+    flightProgressListeners.add(listener);
+    return () => flightProgressListeners.delete(listener);
+  },
+  publish(next: FlightProgressSnapshot) {
+    if (
+      Math.abs(next.progress - flightProgressSnapshot.progress) < 0.0005
+      && next.sectionId === flightProgressSnapshot.sectionId
+      && next.isFlying === flightProgressSnapshot.isFlying
+      && next.isParked === flightProgressSnapshot.isParked
+    ) return;
+    flightProgressSnapshot = next;
+    flightProgressListeners.forEach((listener) => listener());
+  },
+};
+
+export function getFlightSectionId(progress: number, stops: readonly number[]): FlightSectionId {
+  const bounded = Math.max(0, Math.min(1, progress));
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const midpoint = (stops[index] + stops[index + 1]) / 2;
+    if (bounded < midpoint) return FLIGHT_SECTION_IDS[index];
+  }
+  return FLIGHT_SECTION_IDS[FLIGHT_SECTION_IDS.length - 1];
+}
+
 export function getSectionStops(documentHeight: number, viewportHeight: number) {
   const maxScroll = Math.max(1, documentHeight - viewportHeight);
   let previous = 0;

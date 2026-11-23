@@ -1090,6 +1090,15 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   scroll-margin-top: calc(92px + env(safe-area-inset-top));
 }
 
+@media (min-width: 1024px) {
+  .space-background-present main > .content-section {
+    --parked-ship-gutter: clamp(150px, 16vw, 280px);
+    width: min(calc(100vw - 40px - var(--parked-ship-gutter)), 1120px);
+    margin-left: max(20px, calc((100vw - 1120px) / 2));
+    margin-right: auto;
+  }
+}
+
 .content-section + .content-section {
   border-top: 1px solid rgb(196 122 32 / 13%);
 }
