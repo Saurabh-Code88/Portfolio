@@ -2,6 +2,8 @@ import { CatmullRomCurve3, Vector3 } from "three";
 
 export const FLIGHT_SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
 
+export type FlightPhase = "travel" | "orbit" | "settle" | "idle";
+
 // Ship dwell stops beside each section — x offsets keep the ship in the margins,
 // never behind a centered content panel. Research sits toward the bright right side.
 export const FLIGHT_WAYPOINTS = [
@@ -18,16 +20,20 @@ export const flightCurve = new CatmullRomCurve3(FLIGHT_WAYPOINTS, false, "catmul
 export type FlightSectionId = (typeof FLIGHT_SECTION_IDS)[number];
 export type FlightProgressSnapshot = {
   sectionId: FlightSectionId;
+  targetSectionId: FlightSectionId | null;
   progress: number;
   isFlying: boolean;
   isParked: boolean;
+  phase: FlightPhase;
 };
 
 let flightProgressSnapshot: FlightProgressSnapshot = {
   sectionId: "hero",
+  targetSectionId: null,
   progress: 0,
   isFlying: false,
   isParked: false,
+  phase: "idle",
 };
 const flightProgressListeners = new Set<() => void>();
 
@@ -41,13 +47,25 @@ export const flightProgressStore = {
     if (
       Math.abs(next.progress - flightProgressSnapshot.progress) < 0.0005
       && next.sectionId === flightProgressSnapshot.sectionId
+      && next.targetSectionId === flightProgressSnapshot.targetSectionId
       && next.isFlying === flightProgressSnapshot.isFlying
       && next.isParked === flightProgressSnapshot.isParked
+      && next.phase === flightProgressSnapshot.phase
     ) return;
     flightProgressSnapshot = next;
     flightProgressListeners.forEach((listener) => listener());
   },
 };
+
+export function easeInOutCubic(value: number) {
+  const t = Math.max(0, Math.min(1, value));
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+export function easeInOutSine(value: number) {
+  const t = Math.max(0, Math.min(1, value));
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
 
 export function getFlightSectionId(progress: number, stops: readonly number[]): FlightSectionId {
   const bounded = Math.max(0, Math.min(1, progress));

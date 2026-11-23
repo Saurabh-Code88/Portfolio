@@ -27,7 +27,13 @@ export const PARK_Y = 0.5;
 export const PARK_SCALE = 0.58;
 export const PARK_DEPTH = 4;
 export const PARK_HOVER_AMPLITUDE = 0.025;
-export const READOUT_FLIGHT_DURATION_MS = 1500;
+export const ORBIT_TURNS = 1;
+export const ORBIT_DURATION = 1300;
+export const TRAVEL_DURATION = 900;
+export const SETTLE_DURATION = 500;
+export const ORBIT_RADIUS_X = 0.55;
+export const ORBIT_RADIUS_Y = 0.46;
+export const ORBIT_TILT = 0.21;
 
 export const HERO_SHIP_BREAKPOINT_OVERRIDES = {
   desktop: { minWidth: 1024, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },

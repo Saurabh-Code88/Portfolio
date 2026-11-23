@@ -371,6 +371,23 @@ pre {
   background: var(--bg);
 }
 
+body.orbit-flight-active .space-background--active {
+  z-index: 2;
+  background: transparent;
+}
+
+body.orbit-flight-active.orbit-flight-behind .space-background--active {
+  z-index: 0;
+}
+
+body.orbit-flight-active .space-background--active .space-background__image,
+body.orbit-flight-active .space-background--active .space-background__vignette,
+body.orbit-flight-active .space-background--active .space-background__stars {
+  opacity: 0;
+}
+
+body.orbit-flight-active .space-background--active canvas { pointer-events: none; }
+
 .space-background__image,
 .space-background__vignette,
 .space-background__stars {
@@ -707,6 +724,31 @@ html.model-grab-active * {
   padding-left: 20px;
   color: var(--ink-muted);
 }
+
+.flight-preview-controls {
+  position: fixed;
+  z-index: 20;
+  top: 14px;
+  left: 14px;
+  display: grid;
+  width: min(250px, calc(100vw - 28px));
+  max-height: calc(100svh - 28px);
+  gap: 10px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(5 7 10 / 94%);
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.flight-preview-controls h1 { margin: 0; color: var(--amber); font-size: 1.15rem; }
+.flight-preview-controls header > a { color: var(--amber); }
+.flight-preview-controls .ship-preview__eyebrow { margin: 0; }
+.flight-preview-controls input { width: 100%; accent-color: var(--amber); }
+.flight-preview-controls .ship-preview__actions { display: grid; gap: 6px; }
+.flight-preview-controls .hero-action { min-height: 34px; padding: 4px 8px; font-size: 0.7rem; }
 
 @media (max-width: 600px) {
   .ship-preview-page { width: min(100% - 32px, 1280px); padding-top: 26px; }
