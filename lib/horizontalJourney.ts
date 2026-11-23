@@ -1,5 +1,25 @@
 const SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
 
+export type JourneyRevealPosition = {
+  x: number;
+  width: number;
+  panels: readonly { id: string; offset: number }[];
+};
+let revealPosition: JourneyRevealPosition | null = null;
+const revealListeners = new Set<() => void>();
+/** Published only by the existing journey measurement/track update, never a new loop. */
+export const journeyRevealPosition = {
+  getSnapshot: () => revealPosition,
+  publish(position: JourneyRevealPosition | null) {
+    revealPosition = position;
+    revealListeners.forEach((listener) => listener());
+  },
+  subscribe(listener: () => void) {
+    revealListeners.add(listener);
+    return () => { revealListeners.delete(listener); };
+  },
+};
+
 function getJourney() {
   return document.querySelector<HTMLElement>("[data-horizontal-journey='active']");
 }

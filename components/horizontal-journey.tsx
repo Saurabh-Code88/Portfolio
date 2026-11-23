@@ -1,6 +1,7 @@
 "use client";
 
 import { Children, useLayoutEffect, useRef } from "react";
+import { journeyRevealPosition, type JourneyRevealPosition } from "@/lib/horizontalJourney";
 
 /** A native vertical scroll region that translates the existing sections horizontally. */
 export function HorizontalJourney({ children }: { children: React.ReactNode }) {
@@ -19,6 +20,7 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
     let horizontal = false;
     let frame = 0;
     let initialPositionHandled = false;
+    let revealGeometry: JourneyRevealPosition | null = null;
 
     const syncTrack = () => {
       frame = 0;
@@ -28,6 +30,10 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
       const horizontalDistance = Number(region.dataset.horizontalDistance || 0);
       const progress = Math.max(0, Math.min(1, (window.scrollY - start) / Math.max(1, verticalDistance)));
       track.style.transform = `translate3d(${-horizontalDistance * progress}px, 0, 0)`;
+      if (revealGeometry) {
+        revealGeometry.x = horizontalDistance * progress;
+        journeyRevealPosition.publish(revealGeometry);
+      }
     };
     const requestSync = () => {
       if (!frame) frame = requestAnimationFrame(syncTrack);
@@ -49,6 +55,8 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
       region.classList.toggle("horizontal-journey--active", horizontal);
 
       if (!horizontal) {
+        revealGeometry = null;
+        journeyRevealPosition.publish(null);
         delete region.dataset.horizontalJourney;
         delete region.dataset.scrollStart;
         delete region.dataset.horizontalDistance;
@@ -67,6 +75,13 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
       region.dataset.horizontalDistance = String(horizontalDistance);
       region.dataset.verticalDistance = String(verticalDistance);
       region.style.height = `${height + verticalDistance}px`;
+      revealGeometry = window.innerWidth >= 1024 ? {
+        x: 0, width,
+        panels: panels.map((panel) => ({
+          id: panel.querySelector<HTMLElement>("section[id]")?.id ?? "", offset: panel.offsetLeft,
+        })),
+      } : null;
+      if (!revealGeometry) journeyRevealPosition.publish(null);
       if (!initialPositionHandled) {
         initialPositionHandled = true;
         const sectionId = window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : "";
@@ -98,6 +113,7 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
       if (frame) cancelAnimationFrame(frame);
+      journeyRevealPosition.publish(null);
       region.classList.remove("horizontal-journey--active");
       region.style.height = "";
     };

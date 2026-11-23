@@ -3,7 +3,8 @@
 import { animate, type AnimationPlaybackControls } from "framer-motion";
 import { useEffect } from "react";
 import { easeInOutCubic, flightProgressStore, FLIGHT_SECTION_IDS } from "@/lib/flightPath";
-import { getHorizontalJourneyScrollTarget } from "@/lib/horizontalJourney";
+import { getHorizontalJourneyScrollTarget, journeyRevealPosition } from "@/lib/horizontalJourney";
+import { sectionArrivalProgress, sectionRevealStyle } from "@/lib/sectionReveal";
 
 const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .research-panel, .experience-entry, .education-column, .contact-links";
 
@@ -46,7 +47,58 @@ export function SectionRevealController() {
       revealed.delete(element);
     });
 
+    const sections = FLIGHT_SECTION_IDS.filter((id) => id !== "hero").map((id) => ({
+      id, element: document.getElementById(id), targets: revealTargets(id), complete: false, lastProgress: -1,
+    }));
+    let desktop = false;
+    const restoreDesktop = () => {
+      sections.forEach(({ targets }) => targets.forEach((element) => {
+        stop(element);
+        element.style.opacity = "1";
+        element.style.transform = "none";
+        revealed.add(element);
+      }));
+    };
+    const syncDesktop = () => {
+      const geometry = journeyRevealPosition.getSnapshot();
+      const enabled = Boolean(geometry) && !reducedMotion.matches;
+      if (!enabled || !geometry) {
+        if (desktop) restoreDesktop();
+        desktop = false;
+        return;
+      }
+      if (!desktop) {
+        sections.forEach((section) => {
+          if (section.targets.length && section.targets.every((element) => revealed.has(element))) section.complete = true;
+          section.lastProgress = -1;
+          section.targets.forEach(stop);
+        });
+        previousTarget = null;
+        previousPhase = "idle";
+        desktop = true;
+      }
+      const flight = flightProgressStore.getSnapshot();
+      for (const section of sections) {
+        const panel = geometry.panels.find(({ id }) => id === section.id);
+        if (!panel) continue;
+        let progress = sectionArrivalProgress(geometry.x, panel.offset, geometry.width);
+        // Arrival phases share the same visible state instead of restarting a spring.
+        if (flight.targetSectionId === section.id && ["orbit", "settle"].includes(flight.phase)) progress = 1;
+        if (progress >= 1 || section.element?.contains(document.activeElement)) section.complete = true;
+        if (section.complete) progress = 1;
+        if (section.lastProgress === progress) continue;
+        section.lastProgress = progress;
+        section.targets.forEach((element, index) => {
+          const value = sectionRevealStyle(progress, index, element.classList.contains("section-heading"));
+          element.style.transformOrigin = "center";
+          element.style.opacity = String(value.opacity);
+          element.style.transform = `translateY(${value.y}px) scale(${value.scale})`;
+        });
+      }
+    };
+
     const onStoreUpdate = () => {
+      if (journeyRevealPosition.getSnapshot() && !reducedMotion.matches) { syncDesktop(); return; }
       const state = flightProgressStore.getSnapshot();
       const target = state.targetSectionId;
       const isTravelPhase = state.phase === "undock" || state.phase === "travel" || state.phase === "approach";
@@ -75,6 +127,7 @@ export function SectionRevealController() {
     };
 
     const observer = new IntersectionObserver((entries) => {
+      if (journeyRevealPosition.getSnapshot() && !reducedMotion.matches) return;
       if (flightProgressStore.getSnapshot().isFlying) return;
       entries.forEach(({ isIntersecting, target }) => {
         if (!isIntersecting) return;
@@ -88,6 +141,11 @@ export function SectionRevealController() {
       if (section) observer.observe(section);
     });
     const unsubscribe = flightProgressStore.subscribe(onStoreUpdate);
+    const unsubscribeJourney = journeyRevealPosition.subscribe(syncDesktop);
+    const onFocus = () => { if (desktop) syncDesktop(); };
+    document.addEventListener("focusin", onFocus, true);
+    reducedMotion.addEventListener("change", syncDesktop);
+    syncDesktop();
 
     const cancelFallbackScroll = () => {
       if (fallbackFrame) cancelAnimationFrame(fallbackFrame);
@@ -144,6 +202,10 @@ export function SectionRevealController() {
     window.addEventListener("touchstart", cancelFallbackScroll, { passive: true });
     return () => {
       unsubscribe();
+      unsubscribeJourney();
+      document.removeEventListener("focusin", onFocus, true);
+      reducedMotion.removeEventListener("change", syncDesktop);
+      if (desktop) restoreDesktop();
       observer.disconnect();
       document.removeEventListener("click", fallbackClick, true);
       window.removeEventListener("portfolio:flight-to", fallbackFlight);
