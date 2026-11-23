@@ -1,8 +1,8 @@
-import { CatmullRomCurve3, Vector3 } from "three";
+import { CatmullRomCurve3, Vector2, Vector3 } from "three";
 
 export const FLIGHT_SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
 
-export type FlightPhase = "travel" | "orbit" | "settle" | "idle";
+export type FlightPhase = "undock" | "travel" | "approach" | "orbit" | "settle" | "idle";
 
 // Ship dwell stops beside each section — x offsets keep the ship in the margins,
 // never behind a centered content panel. Research sits toward the bright right side.
@@ -62,9 +62,106 @@ export function easeInOutCubic(value: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-export function easeInOutSine(value: number) {
+export function smoothstep(value: number) {
   const t = Math.max(0, Math.min(1, value));
-  return -(Math.cos(Math.PI * t) - 1) / 2;
+  return t * t * (3 - 2 * t);
+}
+
+export type OrbitSample = { angle: number; angleRate: number; radiusScale: number; scale: number };
+
+/**
+ * Samples the existing clockwise section orbit. The cyclic easing keeps a
+ * non-zero, matching tangent at the top entry/exit, avoiding a pause between
+ * travel, orbit, and settle while retaining the one-turn choreography.
+ */
+export function sampleOrbit(
+  progress: number,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  turns: number,
+  position: Vector2,
+  tangent: Vector2,
+  result: OrbitSample,
+  radiusInset = 0.15,
+  rateVariation = 0.5,
+  scaleBase = 0.9,
+  scaleAmplitude = 0.1,
+) {
+  const t = Math.max(0, Math.min(1, progress));
+  const eased = t + Math.sin(Math.PI * 2 * t) / (Math.PI * 4);
+  const angle = -Math.PI / 2 + Math.PI * 2 * turns * eased;
+  const angleRate = Math.PI * 2 * turns * (1 + rateVariation * Math.cos(Math.PI * 2 * t));
+  const radiusScale = 1 - radiusInset * smoothstep(t);
+  const radiusRate = -radiusInset * 6 * t * (1 - t);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  position.set(
+    centerX + cos * radiusX * radiusScale,
+    centerY + sin * radiusY * radiusScale,
+  );
+  tangent.set(
+    radiusX * (radiusRate * cos - radiusScale * sin * angleRate),
+    radiusY * (radiusRate * sin + radiusScale * cos * angleRate),
+  );
+
+  result.angle = angle;
+  result.angleRate = angleRate;
+  result.radiusScale = radiusScale;
+  result.scale = scaleBase + scaleAmplitude * sin;
+  return result;
+}
+
+export function sampleCubicBezier(
+  progress: number,
+  start: Vector2,
+  control1: Vector2,
+  control2: Vector2,
+  end: Vector2,
+  position: Vector2,
+  tangent: Vector2,
+) {
+  const t = Math.max(0, Math.min(1, progress));
+  const inverse = 1 - t;
+  const inverseSquared = inverse * inverse;
+  const tSquared = t * t;
+  position.set(
+    inverseSquared * inverse * start.x + 3 * inverseSquared * t * control1.x + 3 * inverse * tSquared * control2.x + tSquared * t * end.x,
+    inverseSquared * inverse * start.y + 3 * inverseSquared * t * control1.y + 3 * inverse * tSquared * control2.y + tSquared * t * end.y,
+  );
+  tangent.set(
+    3 * inverseSquared * (control1.x - start.x) + 6 * inverse * t * (control2.x - control1.x) + 3 * tSquared * (end.x - control2.x),
+    3 * inverseSquared * (control1.y - start.y) + 6 * inverse * t * (control2.y - control1.y) + 3 * tSquared * (end.y - control2.y),
+  );
+  return position;
+}
+
+export function sampleCubicBezier3(
+  progress: number,
+  start: Vector3,
+  control1: Vector3,
+  control2: Vector3,
+  end: Vector3,
+  position: Vector3,
+  tangent: Vector3,
+) {
+  const t = Math.max(0, Math.min(1, progress));
+  const inverse = 1 - t;
+  const inverseSquared = inverse * inverse;
+  const tSquared = t * t;
+  position.set(
+    inverseSquared * inverse * start.x + 3 * inverseSquared * t * control1.x + 3 * inverse * tSquared * control2.x + tSquared * t * end.x,
+    inverseSquared * inverse * start.y + 3 * inverseSquared * t * control1.y + 3 * inverse * tSquared * control2.y + tSquared * t * end.y,
+    inverseSquared * inverse * start.z + 3 * inverseSquared * t * control1.z + 3 * inverse * tSquared * control2.z + tSquared * t * end.z,
+  );
+  tangent.set(
+    3 * inverseSquared * (control1.x - start.x) + 6 * inverse * t * (control2.x - control1.x) + 3 * tSquared * (end.x - control2.x),
+    3 * inverseSquared * (control1.y - start.y) + 6 * inverse * t * (control2.y - control1.y) + 3 * tSquared * (end.y - control2.y),
+    3 * inverseSquared * (control1.z - start.z) + 6 * inverse * t * (control2.z - control1.z) + 3 * tSquared * (end.z - control2.z),
+  );
+  return position;
 }
 
 export function getFlightSectionId(progress: number, stops: readonly number[]): FlightSectionId {

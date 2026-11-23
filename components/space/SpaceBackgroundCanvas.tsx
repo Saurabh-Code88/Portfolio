@@ -20,7 +20,7 @@ import {
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
-import { FLIGHT_SECTION_IDS, easeInOutCubic, easeInOutSine, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleFlight, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
+import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
   HERO_SHIP_CAMERA_TARGET_Y,
@@ -35,6 +35,10 @@ import {
   ORBIT_DURATION,
   ORBIT_RADIUS_X,
   ORBIT_RADIUS_Y,
+  ORBIT_RADIUS_INSET,
+  ORBIT_RATE_VARIATION,
+  ORBIT_SCALE_AMPLITUDE,
+  ORBIT_SCALE_BASE,
   ORBIT_TILT,
   ORBIT_TURNS,
   PARK_DEPTH,
@@ -75,8 +79,14 @@ type OrbitFlight = {
   scrollTo: number;
   speed: number;
   fromScreen: Vector2;
+  fromVelocity: Vector2;
+  fromWorld: Vector3;
+  fromDepth: number;
   fromQuaternion: Quaternion;
   fromScale: number;
+  fromScrollVelocity: number;
+  lastScrollTop: number;
+  lastScrollAt: number;
 };
 type OrbitBounds = { left: number; right: number; centerX: number; centerY: number; radiusX: number; radiusY: number };
 
@@ -221,7 +231,17 @@ function FlightShip({
   const progressInitialized = useRef(false);
   const navFlight = useRef<OrbitFlight | null>(null);
   const scrollFrame = useRef<number | null>(null);
-  const returnToPark = useRef<{ startedAt: number; fromPosition: Vector3; fromQuaternion: Quaternion } | null>(null);
+  const flightScreenVelocity = useMemo(() => new Vector2(), []);
+  const scrollVelocity = useRef(0);
+  const returnToPark = useRef<{
+    startedAt: number;
+    duration: number;
+    fromScreen: Vector2;
+    fromVelocity: Vector2;
+    fromDepth: number;
+    fromQuaternion: Quaternion;
+    bounds: Pick<OrbitBounds, "left" | "right">;
+  } | null>(null);
   const rotationMotion = useRef<Record<ModelKey, RotationMotion>>({ ship: createRotationMotion(), station: createRotationMotion() });
   const suppressNextClick = useRef(false);
   const raycaster = useMemo(() => new Raycaster(), []);
@@ -254,8 +274,20 @@ function FlightShip({
   const freePosition = useMemo(() => new Vector3(), []);
   const flightWorld = useMemo(() => new Vector3(), []);
   const flightAhead = useMemo(() => new Vector3(), []);
+  const dockApproach = useMemo(() => new Vector3(), []);
+  const heroStart = useMemo(() => new Vector3(), []);
+  const heroControl1 = useMemo(() => new Vector3(), []);
+  const heroControl2 = useMemo(() => new Vector3(), []);
   const flightTangent = useMemo(() => new Vector3(), []);
   const flightScreen = useMemo(() => new Vector2(), []);
+  const flightScreenTangent = useMemo(() => new Vector2(), []);
+  const orbitSamplePosition = useMemo(() => new Vector2(), []);
+  const orbitSampleTangent = useMemo(() => new Vector2(), []);
+  const orbitSample = useMemo(() => ({ angle: 0, angleRate: 0, radiusScale: 1, scale: ORBIT_SCALE_BASE }), []);
+  const bezierStart = useMemo(() => new Vector2(), []);
+  const bezierControl1 = useMemo(() => new Vector2(), []);
+  const bezierControl2 = useMemo(() => new Vector2(), []);
+  const bezierEnd = useMemo(() => new Vector2(), []);
   const flightOrientation = useMemo(() => new Quaternion(), []);
 
   // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
@@ -414,6 +446,7 @@ function FlightShip({
       const currentPosition = group.current?.position.clone() ?? screenToWorld(camera as PerspectiveCamera, PARK_X * viewportWidth, PARK_Y * viewportHeight, PARK_DEPTH, viewportWidth, viewportHeight, new Vector3());
       const currentRotation = group.current?.quaternion.clone() ?? dockQuat.clone();
       const fromScreen = worldToScreen(camera as PerspectiveCamera, currentPosition, viewportWidth, viewportHeight, new Vector2());
+      const fromDepth = Math.max(0.1, -camera.worldToLocal(currentPosition.clone()).z);
       const from = displayedProgress.current;
       const sectionSpan = sectionIndex > 0
         ? Math.max(0.001, stops.current[sectionIndex] - stops.current[sectionIndex - 1])
@@ -421,11 +454,12 @@ function FlightShip({
       const distanceRatio = Math.max(0.35, Math.min(1, Math.abs(targetProgress - from) / sectionSpan));
       const travelDuration = TRAVEL_DURATION * distanceRatio / Math.max(0.4, speed);
       const isHero = sectionId === "hero";
+      const now = performance.now();
       navFlight.current = {
         from,
         to: targetProgress,
         sectionId: sectionId as (typeof FLIGHT_SECTION_IDS)[number],
-        startedAt: performance.now(),
+        startedAt: now,
         travelDuration,
         orbitDuration: isHero ? 0 : ORBIT_DURATION / Math.max(0.4, speed),
         settleDuration: SETTLE_DURATION / Math.max(0.4, speed),
@@ -433,8 +467,14 @@ function FlightShip({
         scrollTo: targetProgress * maxScroll,
         speed,
         fromScreen,
+        fromVelocity: flightScreenVelocity.clone(),
+        fromWorld: currentPosition,
+        fromDepth,
         fromQuaternion: currentRotation,
         fromScale: group.current?.scale.x ?? PARK_SCALE,
+        fromScrollVelocity: scrollVelocity.current,
+        lastScrollTop: window.scrollY,
+        lastScrollAt: now,
       };
       document.body.classList.add("orbit-flight-active");
       document.body.classList.remove("orbit-flight-behind");
@@ -442,9 +482,19 @@ function FlightShip({
         const current = navFlight.current;
         if (!current) return;
         const phaseProgress = Math.min(1, (now - current.startedAt) / current.travelDuration);
-        const eased = easeInOutCubic(phaseProgress);
-        const scrollTop = MathUtils.lerp(current.scrollFrom, current.scrollTo, eased);
-        displayedProgress.current = MathUtils.lerp(current.from, current.to, eased);
+        const t = phaseProgress;
+        const inverse = 1 - t;
+        const travelSeconds = current.travelDuration / 1000;
+        const control1 = current.scrollFrom + current.fromScrollVelocity * travelSeconds / 3;
+        const scrollTop = inverse * inverse * inverse * current.scrollFrom
+          + 3 * inverse * inverse * t * control1
+          + 3 * inverse * t * t * current.scrollTo
+          + t * t * t * current.scrollTo;
+        const frameSeconds = Math.max(0.001, (now - current.lastScrollAt) / 1000);
+        scrollVelocity.current = (scrollTop - current.lastScrollTop) / frameSeconds;
+        current.lastScrollTop = scrollTop;
+        current.lastScrollAt = now;
+        displayedProgress.current = MathUtils.clamp(scrollTop / maxScroll, 0, 1);
         window.scrollTo({ top: scrollTop, behavior: "instant" });
         if (phaseProgress < 1) scrollFrame.current = requestAnimationFrame(scrollTick);
         else {
@@ -475,18 +525,38 @@ function FlightShip({
       const detail = (event as CustomEvent<{ sectionId?: string; speed?: number }>).detail;
       if (detail?.sectionId) requestFlight(detail.sectionId, detail.speed ?? 1);
     };
+    const handlePopState = () => {
+      const sectionId = window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : "hero";
+      if (FLIGHT_SECTION_IDS.includes(sectionId as (typeof FLIGHT_SECTION_IDS)[number])) requestFlight(sectionId);
+    };
     const cancelFlight = () => {
       if (navFlight.current && group.current) {
-        returnToPark.current = {
-          startedAt: performance.now(),
-          fromPosition: group.current.position.clone(),
-          fromQuaternion: group.current.quaternion.clone(),
-        };
+        const perspectiveCamera = camera instanceof PerspectiveCamera ? camera : null;
+        const position = group.current.position.clone();
+        if (perspectiveCamera) {
+          const flight = navFlight.current;
+          const fromScreen = worldToScreen(perspectiveCamera, position, window.innerWidth, window.innerHeight, new Vector2());
+          const bounds = getOrbitBounds(flight.sectionId, flight.scrollTo, window.innerWidth, window.innerHeight);
+          returnToPark.current = {
+            startedAt: performance.now(),
+            duration: 420,
+            fromScreen,
+            fromVelocity: flightScreenVelocity.clone(),
+            fromDepth: Math.max(0.1, -perspectiveCamera.worldToLocal(position.clone()).z),
+            fromQuaternion: group.current.quaternion.clone(),
+            bounds,
+          };
+          document.body.classList.add("orbit-flight-active");
+          document.body.classList.toggle("orbit-flight-behind", fromScreen.x < bounds.left || fromScreen.x > bounds.right);
+        } else {
+          returnToPark.current = null;
+          clearFlightLayer();
+        }
       }
       navFlight.current = null;
       if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
       scrollFrame.current = null;
-      clearFlightLayer();
+      scrollVelocity.current = 0;
     };
     const handleScrollbarPointer = (event: PointerEvent) => {
       if (event.clientX >= window.innerWidth - 18) cancelFlight();
@@ -495,6 +565,7 @@ function FlightShip({
       if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) cancelFlight();
     };
     document.addEventListener("click", handleClick, true);
+    window.addEventListener("popstate", handlePopState);
     window.addEventListener("portfolio:flight-to", handleProgrammaticFlight);
     window.addEventListener("wheel", cancelFlight, { passive: true });
     window.addEventListener("touchstart", cancelFlight, { passive: true });
@@ -502,6 +573,7 @@ function FlightShip({
     window.addEventListener("pointerdown", handleScrollbarPointer, { capture: true, passive: true });
     return () => {
       document.removeEventListener("click", handleClick, true);
+      window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("portfolio:flight-to", handleProgrammaticFlight);
       window.removeEventListener("wheel", cancelFlight);
       window.removeEventListener("touchstart", cancelFlight);
@@ -518,7 +590,7 @@ function FlightShip({
         phase: "idle",
       });
     };
-  }, [camera, dockQuat, group]);
+  }, [camera, dockQuat, flightScreenVelocity, group]);
 
   useEffect(() => {
     const handlePointer = (event: PointerEvent) => {
@@ -573,7 +645,11 @@ function FlightShip({
     let flightCompletes = false;
     if (flight) {
       const elapsed = Math.max(0, performance.now() - flight.startedAt);
-      if (elapsed < flight.travelDuration) phase = "travel";
+      const undockDuration = Math.min(140, flight.travelDuration * 0.12);
+      const approachStart = flight.travelDuration * 0.82;
+      if (elapsed < undockDuration) phase = "undock";
+      else if (elapsed < approachStart) phase = "travel";
+      else if (elapsed < flight.travelDuration) phase = "approach";
       else if (flight.sectionId !== "hero" && elapsed < flight.travelDuration + flight.orbitDuration) phase = "orbit";
       else if (elapsed < flight.travelDuration + flight.orbitDuration + flight.settleDuration) phase = "settle";
       else {
@@ -655,7 +731,7 @@ function FlightShip({
       phase,
     });
 
-    if (heroBlend < 1 && (!activeFlight || activeFlight.sectionId === "hero")) {
+    if (activeFlight?.sectionId === "hero" || (heroBlend < 1 && !activeFlight)) {
       // ── Hero parking position with idle bob ──
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
       dockedPosition.set(
@@ -668,11 +744,40 @@ function FlightShip({
         HERO_SHIP_POSITION[1] + bobY + pointer.current.y * -0.04,
         HERO_SHIP_POSITION[2],
       );
-      shipTarget.lerpVectors(dockedPosition, freePosition, heroBlend);
-      group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
-      const heroScale = MathUtils.lerp(1, shipPreset.scale * heroAspectScale, 1 - heroBlend);
-      const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
-      group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
+      if (activeFlight?.sectionId === "hero") {
+        const elapsed = Math.max(0, now - activeFlight.startedAt);
+        const totalDuration = Math.max(1, activeFlight.travelDuration + activeFlight.settleDuration);
+        const totalProgress = MathUtils.clamp(elapsed / totalDuration, 0, 1);
+        const travelProgress = MathUtils.clamp(elapsed / activeFlight.travelDuration, 0, 1);
+        const settleProgress = MathUtils.clamp(
+          (elapsed - activeFlight.travelDuration) / Math.max(1, activeFlight.settleDuration),
+          0,
+          1,
+        );
+        dockApproach.copy(dockedPosition).sub(activeFlight.fromWorld).multiplyScalar(0.56).add(activeFlight.fromWorld);
+        dockApproach.y += 0.18;
+        flightTangent.copy(dockedPosition).sub(dockApproach).multiplyScalar(0.72 / Math.max(0.001, activeFlight.settleDuration / 1000));
+        if (phase !== "settle") {
+          heroStart.copy(activeFlight.fromWorld);
+          heroControl1.copy(heroStart);
+          heroControl2.copy(dockApproach).addScaledVector(flightTangent, -Math.max(0.001, activeFlight.travelDuration / 1000) / 3);
+          sampleCubicBezier3(travelProgress, heroStart, heroControl1, heroControl2, dockApproach, flightWorld, flightTangent);
+        } else {
+          heroControl1.copy(dockApproach).addScaledVector(flightTangent, Math.max(0.001, activeFlight.settleDuration / 1000) / 3);
+          heroControl2.copy(dockedPosition);
+          sampleCubicBezier3(settleProgress, dockApproach, heroControl1, heroControl2, dockedPosition, flightWorld, flightTangent);
+        }
+        group.current.position.copy(flightWorld);
+        group.current.scale.setScalar(MathUtils.lerp(activeFlight.fromScale, dockScale, smoothstep(totalProgress)));
+        group.current.quaternion.copy(activeFlight.fromQuaternion).slerp(dockQuat, smoothstep(totalProgress));
+        flightScreenVelocity.set(0, 0);
+      } else {
+        shipTarget.lerpVectors(dockedPosition, freePosition, heroBlend);
+        group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
+        const heroScale = MathUtils.lerp(1, shipPreset.scale * heroAspectScale, 1 - heroBlend);
+        const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
+        group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
+      }
 
       // Three-quarter view orientation + pointer tilt
       direction.copy(flightCurve.getTangent(0)).normalize();
@@ -698,8 +803,10 @@ function FlightShip({
         idleSpinAngle.current += shipPreset.idleSpin * delta;
       }
       idleSpinRotation.setFromAxisAngle(rotationAxisY, idleSpinAngle.current * (1 - heroBlend));
-      orientation.copy(dockQuat).slerp(heroQuat, heroBlend).premultiply(idleSpinRotation).multiply(pointerRotation).multiply(rollRotation);
-      group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
+      if (activeFlight?.sectionId !== "hero") {
+        orientation.copy(dockQuat).slerp(heroQuat, heroBlend).premultiply(idleSpinRotation).multiply(pointerRotation).multiply(rollRotation);
+        group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
+      }
       enginePower.current = MathUtils.damp(enginePower.current, 1 + flare, 5, delta);
       warp.current = MathUtils.damp(warp.current, 0, 5, delta);
 
@@ -732,90 +839,109 @@ function FlightShip({
     const perspectiveCamera = camera instanceof PerspectiveCamera ? camera : null;
     let flare = 0;
     let outsideContent = false;
-    if (activeFlight && activeFlight.sectionId !== "hero" && perspectiveCamera) {
+    if (activeFlight && perspectiveCamera) {
       const elapsed = Math.max(0, now - activeFlight.startedAt);
       const bounds = getOrbitBounds(activeFlight.sectionId, activeFlight.scrollTo, state.size.width, state.size.height);
       const travelProgress = MathUtils.clamp(elapsed / activeFlight.travelDuration, 0, 1);
       const orbitProgress = MathUtils.clamp((elapsed - activeFlight.travelDuration) / Math.max(1, activeFlight.orbitDuration), 0, 1);
       const settleProgress = MathUtils.clamp((elapsed - activeFlight.travelDuration - activeFlight.orbitDuration) / Math.max(1, activeFlight.settleDuration), 0, 1);
       let depth = PARK_DEPTH;
-      let nextX = 0;
-      let nextY = 0;
+      let scaleTarget = PARK_SCALE;
+      let screenVelocityX = 0;
+      let screenVelocityY = 0;
+      let depthTangent = 0;
+      const travelSeconds = Math.max(0.001, activeFlight.travelDuration / 1000);
+      const orbitSeconds = Math.max(0.001, activeFlight.orbitDuration / 1000);
+      const settleSeconds = Math.max(0.001, activeFlight.settleDuration / 1000);
 
-      if (phase === "travel") {
-        const eased = easeInOutCubic(travelProgress);
+      if (phase === "undock" || phase === "travel" || phase === "approach") {
         const entryX = bounds.centerX;
         const entryY = bounds.centerY - bounds.radiusY;
-        const controlX = (activeFlight.fromScreen.x + entryX) / 2;
-        const controlY = Math.min(activeFlight.fromScreen.y, entryY) - Math.min(100, state.size.height * 0.12);
-        const inverse = 1 - eased;
-        flightScreen.set(
-          inverse * inverse * activeFlight.fromScreen.x + 2 * inverse * eased * controlX + eased * eased * entryX,
-          inverse * inverse * activeFlight.fromScreen.y + 2 * inverse * eased * controlY + eased * eased * entryY,
+        const orbitStart = sampleOrbit(
+          0, bounds.centerX, bounds.centerY, bounds.radiusX, bounds.radiusY, ORBIT_TURNS,
+          orbitSamplePosition, orbitSampleTangent, orbitSample, ORBIT_RADIUS_INSET, ORBIT_RATE_VARIATION,
+          ORBIT_SCALE_BASE, ORBIT_SCALE_AMPLITUDE,
         );
-        nextX = flightScreen.x + (entryX - activeFlight.fromScreen.x) * 0.01;
-        nextY = flightScreen.y + (entryY - activeFlight.fromScreen.y) * 0.01;
-        group.current.scale.setScalar(MathUtils.lerp(activeFlight.fromScale, 1, eased));
+        bezierStart.copy(activeFlight.fromScreen);
+        bezierEnd.set(entryX, entryY);
+        bezierControl1.copy(bezierStart).addScaledVector(activeFlight.fromVelocity, travelSeconds / 3);
+        bezierControl2.copy(bezierEnd).addScaledVector(orbitSampleTangent, -travelSeconds / (3 * orbitSeconds));
+        sampleCubicBezier(travelProgress, bezierStart, bezierControl1, bezierControl2, bezierEnd, flightScreen, flightScreenTangent);
+        screenVelocityX = flightScreenTangent.x / travelSeconds;
+        screenVelocityY = flightScreenTangent.y / travelSeconds;
+        scaleTarget = MathUtils.lerp(activeFlight.fromScale, orbitStart.scale, smoothstep(travelProgress));
+        depth = MathUtils.lerp(activeFlight.fromDepth, PARK_DEPTH + 1.1, smoothstep(travelProgress));
+        depthTangent = (PARK_DEPTH + 1.1 - activeFlight.fromDepth) * 6 * travelProgress * (1 - travelProgress);
       } else if (phase === "orbit") {
-        const eased = easeInOutSine(orbitProgress);
-        const angle = -Math.PI / 2 + Math.PI * 2 * ORBIT_TURNS * eased;
-        const radiusScale = 1 - 0.15 * eased;
-        const x = Math.cos(angle) * bounds.radiusX * radiusScale;
-        const y = Math.sin(angle) * bounds.radiusY * radiusScale;
-        flightScreen.set(bounds.centerX + x, bounds.centerY + y);
-        const nextAngle = angle + 0.012;
-        const nextScale = radiusScale;
-        nextX = bounds.centerX + Math.cos(nextAngle) * bounds.radiusX * nextScale;
-        nextY = bounds.centerY + Math.sin(nextAngle) * bounds.radiusY * nextScale;
-        depth = PARK_DEPTH - Math.sin(angle) * 1.1;
-        group.current.scale.setScalar(Math.sin(angle) > 0 ? 1 : 0.8);
-        bankRotation.setFromAxisAngle(localForward, Math.cos(angle) * ORBIT_TILT);
+        const orbit = sampleOrbit(
+          orbitProgress, bounds.centerX, bounds.centerY, bounds.radiusX, bounds.radiusY, ORBIT_TURNS,
+          flightScreen, flightScreenTangent, orbitSample, ORBIT_RADIUS_INSET, ORBIT_RATE_VARIATION,
+          ORBIT_SCALE_BASE, ORBIT_SCALE_AMPLITUDE,
+        );
+        screenVelocityX = flightScreenTangent.x / orbitSeconds;
+        screenVelocityY = flightScreenTangent.y / orbitSeconds;
+        depth = PARK_DEPTH - Math.sin(orbit.angle) * 1.1;
+        depthTangent = -Math.cos(orbit.angle) * orbit.angleRate * 1.1;
+        scaleTarget = orbit.scale;
+        bankRotation.setFromAxisAngle(localForward, Math.cos(orbit.angle) * ORBIT_TILT);
         outsideContent = flightScreen.x < bounds.left || flightScreen.x > bounds.right;
       } else {
-        const eased = easeInOutCubic(settleProgress);
-        const startAngle = -Math.PI / 2 + Math.PI * 2 * ORBIT_TURNS;
-        const fromX = bounds.centerX + Math.cos(startAngle) * bounds.radiusX * 0.85;
-        const fromY = bounds.centerY + Math.sin(startAngle) * bounds.radiusY * 0.85;
+        const orbitEnd = sampleOrbit(
+          1, bounds.centerX, bounds.centerY, bounds.radiusX, bounds.radiusY, ORBIT_TURNS,
+          orbitSamplePosition, orbitSampleTangent, orbitSample, ORBIT_RADIUS_INSET, ORBIT_RATE_VARIATION,
+          ORBIT_SCALE_BASE, ORBIT_SCALE_AMPLITUDE,
+        );
         const parkX = state.size.width * PARK_X;
         const parkY = state.size.height * PARK_Y;
-        const controlX = (fromX + parkX) / 2 + Math.min(80, state.size.width * 0.06);
-        const controlY = Math.min(fromY, parkY) - 36;
-        const inverse = 1 - eased;
-        flightScreen.set(
-          inverse * inverse * fromX + 2 * inverse * eased * controlX + eased * eased * parkX,
-          inverse * inverse * fromY + 2 * inverse * eased * controlY + eased * eased * parkY,
-        );
-        nextX = parkX;
-        nextY = parkY;
-        group.current.scale.setScalar(MathUtils.lerp(1, PARK_SCALE, eased));
+        bezierStart.copy(orbitSamplePosition);
+        bezierEnd.set(parkX, parkY);
+        bezierControl1.copy(bezierStart).addScaledVector(orbitSampleTangent, settleSeconds / (3 * orbitSeconds));
+        bezierControl2.copy(bezierEnd);
+        sampleCubicBezier(settleProgress, bezierStart, bezierControl1, bezierControl2, bezierEnd, flightScreen, flightScreenTangent);
+        screenVelocityX = flightScreenTangent.x / settleSeconds;
+        screenVelocityY = flightScreenTangent.y / settleSeconds;
+        depth = MathUtils.lerp(PARK_DEPTH + 1.1, PARK_DEPTH, smoothstep(settleProgress));
+        depthTangent = -1.1 * 6 * settleProgress * (1 - settleProgress);
+        scaleTarget = MathUtils.lerp(orbitEnd.scale, PARK_SCALE, smoothstep(settleProgress));
         outsideContent = flightScreen.x < bounds.left || flightScreen.x > bounds.right;
       }
 
+      flightScreenVelocity.set(screenVelocityX, screenVelocityY);
+      group.current.scale.setScalar(scaleTarget);
       screenToWorld(perspectiveCamera, flightScreen.x, flightScreen.y, depth, state.size.width, state.size.height, flightWorld);
-      screenToWorld(perspectiveCamera, nextX, nextY, depth, state.size.width, state.size.height, flightAhead);
+      screenToWorld(
+        perspectiveCamera,
+        flightScreen.x + flightScreenTangent.x * 0.001,
+        flightScreen.y + flightScreenTangent.y * 0.001,
+        depth + depthTangent * 0.001,
+        state.size.width,
+        state.size.height,
+        flightAhead,
+      );
       group.current.position.copy(flightWorld);
       flightTangent.copy(flightAhead).sub(flightWorld);
       if (flightTangent.lengthSq() > 0.00001) {
         direction.copy(flightTangent).normalize();
-        flightOrientation.setFromUnitVectors(localForward, direction);
+        orientation.setFromUnitVectors(localForward, direction);
       } else {
-        flightOrientation.copy(dockQuat);
+        orientation.copy(activeFlight.fromQuaternion);
       }
       if (phase === "travel") {
-        const eased = easeInOutCubic(travelProgress);
-        group.current.quaternion.copy(activeFlight.fromQuaternion).slerp(flightOrientation, eased);
+        flightOrientation.copy(activeFlight.fromQuaternion).slerp(orientation, smoothstep(travelProgress));
       } else if (phase === "settle") {
-        group.current.quaternion.copy(flightOrientation).slerp(dockQuat, easeInOutCubic(settleProgress));
+        flightOrientation.copy(orientation).slerp(dockQuat, smoothstep(settleProgress));
       } else {
+        flightOrientation.copy(orientation);
         flightOrientation.multiply(bankRotation);
-        group.current.quaternion.slerp(flightOrientation, 1 - Math.exp(-delta * 12));
       }
-      document.body.classList.toggle("orbit-flight-behind", phase !== "travel" && outsideContent);
-      enginePower.current = MathUtils.damp(enginePower.current, phase === "travel" ? 1.2 : phase === "orbit" ? 1.05 : 0.45, 5, delta);
-      warp.current = MathUtils.damp(warp.current, phase === "travel" ? 0.25 : phase === "orbit" ? 0.08 : 0, 5, delta);
+      group.current.quaternion.slerp(flightOrientation, 1 - Math.exp(-delta * 12));
+      const isTravelPhase = phase === "undock" || phase === "travel" || phase === "approach";
+      document.body.classList.toggle("orbit-flight-behind", !isTravelPhase && outsideContent);
+      warp.current = MathUtils.damp(warp.current, isTravelPhase ? 0.25 : phase === "orbit" ? 0.08 : 0, 5, delta);
       if (trail.current) trail.current.visible = false;
     } else {
-      document.body.classList.remove("orbit-flight-behind");
+      flightScreenVelocity.set(0, 0);
+      if (!returnToPark.current) document.body.classList.remove("orbit-flight-behind");
       if (perspectiveCamera) {
         perspectiveCamera.updateMatrixWorld();
         screenToWorld(perspectiveCamera, state.size.width * PARK_X, state.size.height * PARK_Y, PARK_DEPTH, state.size.width, state.size.height, shipTarget);
@@ -826,13 +952,23 @@ function FlightShip({
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 4.2));
       group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, PARK_SCALE, 4, delta));
       orientation.copy(dockQuat);
-      if (returnToPark.current) {
+      if (returnToPark.current && perspectiveCamera) {
         const interruption = returnToPark.current;
-        const t = MathUtils.clamp((now - interruption.startedAt) / 420, 0, 1);
-        const eased = easeInOutCubic(t);
-        group.current.position.lerpVectors(interruption.fromPosition, shipTarget, eased);
-        group.current.quaternion.copy(interruption.fromQuaternion).slerp(dockQuat, eased);
-        if (t >= 1) returnToPark.current = null;
+        const t = MathUtils.clamp((now - interruption.startedAt) / interruption.duration, 0, 1);
+        const end = bezierEnd.set(state.size.width * PARK_X, state.size.height * PARK_Y);
+        bezierStart.copy(interruption.fromScreen);
+        bezierControl1.copy(bezierStart).addScaledVector(interruption.fromVelocity, interruption.duration / 3000);
+        bezierControl2.copy(end);
+        sampleCubicBezier(t, bezierStart, bezierControl1, bezierControl2, end, flightScreen, flightScreenTangent);
+        const depth = MathUtils.lerp(interruption.fromDepth, PARK_DEPTH, smoothstep(t));
+        screenToWorld(perspectiveCamera, flightScreen.x, flightScreen.y, depth, state.size.width, state.size.height, group.current.position);
+        flightScreenVelocity.copy(flightScreenTangent).multiplyScalar(1000 / interruption.duration);
+        group.current.quaternion.copy(interruption.fromQuaternion).slerp(dockQuat, smoothstep(t));
+        document.body.classList.toggle("orbit-flight-behind", flightScreen.x < interruption.bounds.left || flightScreen.x > interruption.bounds.right);
+        if (t >= 1) {
+          returnToPark.current = null;
+          document.body.classList.remove("orbit-flight-active", "orbit-flight-behind");
+        }
       }
       pointerEuler.set(0, 0, 0);
       pointerRotation.setFromEuler(pointerEuler);
@@ -849,10 +985,15 @@ function FlightShip({
     } else {
       rollRotation.identity();
     }
-    if (!activeFlight || activeFlight.sectionId === "hero") {
+    if (!activeFlight) {
       orientation.multiply(pointerRotation).multiply(rollRotation);
       group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
-      enginePower.current = MathUtils.damp(enginePower.current, activeFlight ? 1 + flare : 0.45, 5, delta);
+      enginePower.current = MathUtils.damp(enginePower.current, 0.45, 5, delta);
+    } else {
+      const baseEnginePower = phase === "undock" || phase === "travel" || phase === "approach"
+        ? 1.2
+        : phase === "orbit" ? 1.05 : 0.45;
+      enginePower.current = MathUtils.damp(enginePower.current, baseEnginePower + flare, 5, delta);
     }
 
     cameraTarget.set(sample.position.x * 0.3, sample.position.y * 0.24 + 0.55, 8 + sample.position.z * 0.2);
@@ -873,7 +1014,6 @@ function FlightShip({
       if (flight?.sectionId !== "hero" && perspectiveCamera) {
         screenToWorld(perspectiveCamera, state.size.width * PARK_X, state.size.height * PARK_Y, PARK_DEPTH, state.size.width, state.size.height, group.current.position);
         group.current.scale.setScalar(PARK_SCALE);
-        group.current.quaternion.copy(dockQuat);
       }
       navFlight.current = null;
       returnToPark.current = null;

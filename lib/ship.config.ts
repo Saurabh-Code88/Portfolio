@@ -34,6 +34,10 @@ export const SETTLE_DURATION = 500;
 export const ORBIT_RADIUS_X = 0.55;
 export const ORBIT_RADIUS_Y = 0.46;
 export const ORBIT_TILT = 0.21;
+export const ORBIT_RADIUS_INSET = 0.15;
+export const ORBIT_RATE_VARIATION = 0.5;
+export const ORBIT_SCALE_BASE = 0.9;
+export const ORBIT_SCALE_AMPLITUDE = 0.1;
 
 export const HERO_SHIP_BREAKPOINT_OVERRIDES = {
   desktop: { minWidth: 1024, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },

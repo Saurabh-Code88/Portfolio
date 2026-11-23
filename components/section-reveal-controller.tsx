@@ -48,7 +48,8 @@ export function SectionRevealController() {
     const onStoreUpdate = () => {
       const state = flightProgressStore.getSnapshot();
       const target = state.targetSectionId;
-      if (state.phase === "travel" && target && target !== previousTarget) {
+      const isTravelPhase = state.phase === "undock" || state.phase === "travel" || state.phase === "approach";
+      if (isTravelPhase && target && target !== previousTarget) {
         if (previousTarget) restoreSection(previousTarget);
         if (target !== "hero") hideSection(target);
         previousTarget = target === "hero" ? null : target;
@@ -127,8 +128,15 @@ export function SectionRevealController() {
       const target = sectionId ? document.getElementById(sectionId) : null;
       if (target) scrollToSection(target, reducedMotion.matches ? 0 : 420);
     };
+    const fallbackPopState = () => {
+      if (document.body.classList.contains("space-canvas-active")) return;
+      const sectionId = window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : "hero";
+      const target = document.getElementById(sectionId);
+      if (target) scrollToSection(target, reducedMotion.matches ? 0 : 420);
+    };
     document.addEventListener("click", fallbackClick, true);
     window.addEventListener("portfolio:flight-to", fallbackFlight);
+    window.addEventListener("popstate", fallbackPopState);
     window.addEventListener("wheel", cancelFallbackScroll, { passive: true });
     window.addEventListener("touchstart", cancelFallbackScroll, { passive: true });
     return () => {
@@ -136,6 +144,7 @@ export function SectionRevealController() {
       observer.disconnect();
       document.removeEventListener("click", fallbackClick, true);
       window.removeEventListener("portfolio:flight-to", fallbackFlight);
+      window.removeEventListener("popstate", fallbackPopState);
       window.removeEventListener("wheel", cancelFallbackScroll);
       window.removeEventListener("touchstart", cancelFallbackScroll);
       cancelFallbackScroll();
