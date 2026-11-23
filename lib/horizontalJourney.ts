@@ -16,6 +16,21 @@ function getJourneyNumbers(journey: HTMLElement) {
   };
 }
 
+/** Read the same measured scroll geometry as the track, without relying on RAF order. */
+export function getHorizontalJourneyReadingPosition(sections: readonly HTMLElement[]) {
+  const journey = getJourney();
+  if (!journey) return null;
+  const { start, verticalDistance, horizontalDistance } = getJourneyNumbers(journey);
+  const viewport = journey.querySelector<HTMLElement>(".horizontal-journey__viewport");
+  const panels = sections.map(getPanel);
+  if (!viewport || panels.some((panel) => !panel)) return null;
+  const progress = Math.max(0, Math.min(1, (window.scrollY - start) / Math.max(1, verticalDistance)));
+  return {
+    position: progress * horizontalDistance + viewport.clientWidth / 2,
+    starts: panels.map((panel) => panel!.offsetLeft),
+  };
+}
+
 export function getHorizontalJourneyScrollTarget(section: HTMLElement) {
   const journey = getJourney();
   const panel = getPanel(section);

@@ -3,6 +3,7 @@ import { Chakra_Petch, Fira_Code, IBM_Plex_Sans } from "next/font/google";
 import { profile } from "@/content/profile";
 import { SiteNav } from "@/components/site-nav";
 import { CockpitFrame } from "@/components/cockpit-frame";
+import { ActiveSectionProvider } from "@/components/active-section-provider";
 import { siteUrl } from "@/lib/site-url";
 import "./globals.css";
 
@@ -58,9 +59,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${chakraPetch.variable} ${ibmPlexSans.variable} ${firaCode.variable}`}>
         <a className="skip-link" href="#main-content">Skip to content</a>
-        <SiteNav />
-        <CockpitFrame />
-        {children}
+        <ActiveSectionProvider>
+          <SiteNav />
+          <CockpitFrame />
+          {children}
+        </ActiveSectionProvider>
       </body>
     </html>
   );

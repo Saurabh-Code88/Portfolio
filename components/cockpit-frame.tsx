@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useActiveSection } from "@/components/active-section-provider";
 
 const sectionReadouts = [
   { id: "hero", label: "ABOUT" },
@@ -13,42 +13,10 @@ const sectionReadouts = [
 ] as const;
 
 export function CockpitFrame() {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const activeId = useActiveSection();
+  const activeIndex = Math.max(0, sectionReadouts.findIndex(({ id }) => id === activeId));
   const { scrollYProgress } = useScroll();
   const markerPosition = useTransform(scrollYProgress, (value) => `${value * 100}%`);
-
-  useEffect(() => {
-    const sections = sectionReadouts
-      .map(({ id }) => id === "hero" ? document.querySelector<HTMLElement>("[data-flight-section='hero']") : document.getElementById(id))
-      .filter((section): section is HTMLElement => Boolean(section));
-    const positions = new Map<HTMLElement, number>();
-    const observer = new IntersectionObserver((entries) => {
-      const horizontal = Boolean(document.querySelector("[data-horizontal-journey='active']"));
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          const rect = entry.boundingClientRect;
-          positions.set(entry.target as HTMLElement, horizontal ? rect.left + rect.width / 2 : rect.top);
-        }
-        else positions.delete(entry.target as HTMLElement);
-      }
-      const active = [...positions.entries()].sort(
-        (a, b) => Math.abs(a[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28))
-          - Math.abs(b[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28)),
-      )[0]?.[0];
-      if (!active) return;
-      const sectionId = active.id || "hero";
-      const index = sectionReadouts.findIndex(({ id }) => id === sectionId);
-      if (index >= 0) setActiveIndex(index);
-    }, {
-      rootMargin: document.querySelector("[data-horizontal-journey='active']")
-        ? "-18% -45% -70% -45%"
-        : "-18% 0px -70% 0px",
-      threshold: 0,
-    });
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, []);
 
   const section = sectionReadouts[activeIndex];
 

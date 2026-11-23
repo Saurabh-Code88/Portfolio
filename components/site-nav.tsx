@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useActiveSection } from "@/components/active-section-provider";
 import { profile } from "@/content/profile";
 
 const navigation = [
@@ -13,7 +14,7 @@ const navigation = [
 ] as const;
 
 export function SiteNav() {
-  const [activeId, setActiveId] = useState<(typeof navigation)[number]["id"] | null>(null);
+  const activeId = useActiveSection();
   const navRef = useRef<HTMLElement>(null);
   const activeLinkRef = useRef<HTMLAnchorElement>(null);
 
@@ -23,41 +24,6 @@ export function SiteNav() {
     if (!nav || !link || window.innerWidth >= 768) return;
     const left = link.offsetLeft - nav.offsetLeft - (nav.clientWidth - link.clientWidth) / 2;
     nav.scrollTo({ left, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-  }, []);
-
-  useEffect(() => {
-    const sections = [
-      document.querySelector<HTMLElement>("[data-flight-section='hero']"),
-      ...navigation.map(({ id }) => document.getElementById(id)),
-    ]
-      .filter((section): section is HTMLElement => Boolean(section));
-    if (!sections.length) return;
-
-    const positions = new Map<string, number>();
-    const observer = new IntersectionObserver((entries) => {
-      const horizontal = Boolean(document.querySelector("[data-horizontal-journey='active']"));
-      for (const entry of entries) {
-        const key = (entry.target as HTMLElement).dataset.flightSection || entry.target.id;
-        if (entry.isIntersecting) {
-          const rect = entry.boundingClientRect;
-          positions.set(key, horizontal ? rect.left + rect.width / 2 : rect.top);
-        }
-        else positions.delete(key);
-      }
-      const nearest = [...positions.entries()].sort(
-        (a, b) => Math.abs(a[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28))
-          - Math.abs(b[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28)),
-      )[0];
-      if (nearest) setActiveId(nearest[0] === "hero" ? null : nearest[0] as (typeof navigation)[number]["id"]);
-    }, {
-      rootMargin: document.querySelector("[data-horizontal-journey='active']")
-        ? "-18% -45% -70% -45%"
-        : "-18% 0px -70% 0px",
-      threshold: 0,
-    });
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
