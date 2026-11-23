@@ -3,7 +3,7 @@
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { Box3, Group, Material, Mesh, Object3D, Texture, Vector3 } from "three";
+import { Box3, Group, Material, Mesh, Object3D, Quaternion, Texture, Vector3 } from "three";
 import {
   STATION_DIAMETER,
   STATION_SCALE,
@@ -52,8 +52,9 @@ export function StationModel({
   const group = useRef<Group>(null);
   const frameWindow = useRef({ elapsed: 0, count: 0, slowWindows: 0, hidden: false });
   const monitorStartedAt = useRef(0);
-  const previousFrame = useRef<{ position: Vector3; scale: Vector3; visible: boolean; opacity: number[] } | null>(null);
-  const anomalyLogged = useRef(false);
+  const diagnosticElapsed = useRef(0);
+  const previousSnapshot = useRef<Map<string, { position: number[]; quaternion: number[]; scale: number[]; visible: boolean }> | null>(null);
+  const diagnosticWarnings = useRef(new Set<string>());
   const normalizedModel = useRef<Group>(null);
   const bounds = useMemo(() => new Box3().setFromObject(model), [model]);
   const center = useMemo(() => bounds.getCenter(new Vector3()), [bounds]);
@@ -114,39 +115,67 @@ export function StationModel({
         frameWindow.current.count = 0;
       }
     }
-    if (!preview && process.env.NODE_ENV === "development" && !anomalyLogged.current && performance.now() - monitorStartedAt.current >= 2000) {
-      const currentGroup = group.current;
-      if (currentGroup) {
-        currentGroup.updateWorldMatrix(true, true);
-        const position = currentGroup.getWorldPosition(new Vector3());
-        const worldScale = currentGroup.getWorldScale(new Vector3());
-        let visible = true;
-        let parent: Object3D | null = currentGroup;
-        while (parent) {
-          visible = visible && parent.visible;
-          parent = parent.parent;
-        }
-        const opacity: number[] = [];
-        model.traverse((object) => {
-          if (!(object instanceof Mesh)) return;
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => opacity.push(material.opacity));
-        });
-        const previous = previousFrame.current;
-        const opacityChanged = previous
-          ? previous.opacity.length !== opacity.length
-            || previous.opacity.some((value, index) => !Number.isFinite(opacity[index]) || Math.abs(value - opacity[index]) > 0.25)
-          : false;
-        const unexpected = !visible || !position.toArray().every(Number.isFinite) || !worldScale.toArray().every(Number.isFinite)
-          || opacity.some((value) => !Number.isFinite(value) || value < 0 || value > 1)
-          || Boolean(previous && (position.distanceTo(previous.position) > 0.08 || worldScale.distanceTo(previous.scale) > 0.08 || visible !== previous.visible || opacityChanged));
-        if (unexpected) {
-          anomalyLogged.current = true;
-          console.error("[station] unexpected world transform, visibility, or material opacity", {
-            position: position.toArray(), scale: worldScale.toArray(), visible, opacity,
+    if (!preview && process.env.NODE_ENV === "development" && performance.now() - monitorStartedAt.current >= 2000) {
+      diagnosticElapsed.current += delta;
+      if (diagnosticElapsed.current >= 0.5) {
+        diagnosticElapsed.current = 0;
+        const currentGroup = group.current;
+        if (currentGroup) {
+          currentGroup.updateWorldMatrix(true, false);
+          const snapshot = new Map<string, { position: number[]; quaternion: number[]; scale: number[]; visible: boolean }>();
+          let current: Object3D | null = currentGroup;
+          let depth = 0;
+          while (current && current !== state.scene && depth < 6) {
+            const position = current.getWorldPosition(new Vector3()).toArray();
+            const quaternion = current.getWorldQuaternion(new Quaternion()).toArray();
+            const scale = current.getWorldScale(new Vector3()).toArray();
+            const label = depth === 0 ? "station" : `parent-${depth}`;
+            snapshot.set(label, { position, quaternion, scale, visible: current.visible });
+            const finite = [...position, ...quaternion, ...scale].every(Number.isFinite);
+            const quaternionLength = Math.hypot(...quaternion);
+            if ((!finite || quaternionLength < 0.95 || quaternionLength > 1.05 || scale.some((value) => Math.abs(value) < 0.0001))
+              && !diagnosticWarnings.current.has(`invalid-${label}`)) {
+              diagnosticWarnings.current.add(`invalid-${label}`);
+              console.error(`[station] non-finite or degenerate transform at ${label}`, { position, quaternion, scale });
+            }
+            current = current.parent;
+            depth += 1;
+          }
+          const previous = previousSnapshot.current;
+          for (const [label, currentTransform] of snapshot) {
+            const prior = previous?.get(label);
+            if (prior && currentTransform.visible !== prior.visible) {
+              console.warn(`[station] ${label} visibility changed`, { from: prior.visible, to: currentTransform.visible });
+            }
+            if (!currentTransform.visible && !diagnosticWarnings.current.has(`hidden-${label}`)) {
+              diagnosticWarnings.current.add(`hidden-${label}`);
+              console.warn(`[station] ${label} became hidden while the station is mounted`);
+            }
+            if (prior) {
+              const positionDelta = Math.hypot(...currentTransform.position.map((value, index) => value - prior.position[index]));
+              const scaleDelta = Math.hypot(...currentTransform.scale.map((value, index) => value - prior.scale[index]));
+              if ((positionDelta > 0.08 || scaleDelta > 0.08) && !diagnosticWarnings.current.has(`transform-${label}`)) {
+                diagnosticWarnings.current.add(`transform-${label}`);
+                console.warn(`[station] ${label} position or scale changed between diagnostic samples`, {
+                  from: { position: prior.position, scale: prior.scale },
+                  to: { position: currentTransform.position, scale: currentTransform.scale },
+                });
+              }
+            }
+          }
+          const opacity: number[] = [];
+          model.traverse((object) => {
+            if (!(object instanceof Mesh)) return;
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach((material) => opacity.push(material.opacity));
           });
+          if (opacity.some((value) => !Number.isFinite(value) || value < 0 || value > 1)
+            && !diagnosticWarnings.current.has("opacity")) {
+            diagnosticWarnings.current.add("opacity");
+            console.error("[station] invalid material opacity", { opacity });
+          }
+          previousSnapshot.current = snapshot;
         }
-        previousFrame.current = { position, scale: worldScale, visible, opacity };
       }
     }
   });

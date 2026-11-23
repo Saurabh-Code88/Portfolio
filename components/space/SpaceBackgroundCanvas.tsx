@@ -268,6 +268,15 @@ function FlightShip({
   }, []);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.info(`[station] render ${stationEnabled ? "enabled" : "disabled"}`, {
+        mounted: stationReady,
+        reason: stationEnabled ? "default" : "sustained low frame rate callback",
+      });
+    }
+  }, [stationEnabled, stationReady]);
+
+  useEffect(() => {
     const roots = (): { key: ModelKey; root: Group }[] => [
       ...(shipUserGroup.current ? [{ key: "ship" as const, root: shipUserGroup.current }] : []),
       ...(stationUserGroup.current ? [{ key: "station" as const, root: stationUserGroup.current }] : []),
