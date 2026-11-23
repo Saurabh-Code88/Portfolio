@@ -1,7 +1,7 @@
 "use client";
 
 import { profile, profileContactLinks } from "@/content/profile";
-import { heroCopy, heroProofPoints, heroStations } from "@/content/hero";
+import { heroCopy, heroProofPoints } from "@/content/hero";
 import { HudFrame } from "@/components/hud-frame";
 
 export function Hero() {
@@ -50,12 +50,6 @@ export function Hero() {
                 )}
               </div>
             </HudFrame>
-            <nav className="hero-stations" aria-label={heroCopy.flyToLabel}>
-              <span className="hero-stations__label">{heroCopy.flyToLabel}</span>
-              {heroStations.map((station) => (
-                <a key={station.href} href={station.href}>{station.label}</a>
-              ))}
-            </nav>
           </div>
           <button
             className="hero-ship-trigger"
@@ -63,12 +57,6 @@ export function Hero() {
             aria-label="Make the ship perform a barrel roll"
             onClick={() => window.dispatchEvent(new Event("portfolio:ship-roll"))}
           />
-          <a
-            href="#toolkit"
-            className="hero-skip-flight"
-          >
-            Skip the flight
-          </a>
         </div>
       </div>
     </section>

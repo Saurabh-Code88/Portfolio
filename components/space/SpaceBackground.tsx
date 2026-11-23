@@ -101,9 +101,11 @@ function EnabledSpaceBackground() {
 
   useEffect(() => {
     document.body.classList.toggle("space-canvas-active", mode === "active");
+    document.body.classList.toggle("space-background--fallback", mode === "fallback");
     document.body.classList.add("space-background-present");
     return () => {
       document.body.classList.remove("space-canvas-active");
+      document.body.classList.remove("space-background--fallback");
       document.body.classList.remove("space-background-present");
     };
   }, [mode]);
