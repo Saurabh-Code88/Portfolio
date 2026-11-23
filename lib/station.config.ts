@@ -10,7 +10,7 @@ export type StationTransform = {
 export const STATION_SCALE = 1;
 export const STATION_DIAMETER = 4.6;
 export const STATION_HERO_CAMERA_FOV = 48;
-export const STATION_POSITION: readonly [number, number, number] = [0.27, -0.12, -0.35];
+export const STATION_POSITION: readonly [number, number, number] = [0, -0.1, -0.35];
 export const STATION_ROTATION: readonly [number, number, number] = [0, 0, 0];
 export const DOCK_POINT: readonly [number, number, number] = [0, 0.76, 0];
 export const STATION_YAW_DRIFT = 0.00012;
@@ -24,15 +24,15 @@ export const STATION_BREAKPOINT_OVERRIDES: Record<StationBreakpointName, Station
     position: STATION_POSITION,
     rotation: STATION_ROTATION,
     dockPoint: DOCK_POINT,
-    widthFraction: 0.45,
+    widthFraction: 0.44,
   },
   tablet: {
     minWidth: 768,
     scale: 1,
-    position: [0.27, -0.13, -0.35],
+    position: [0, -0.1, -0.35],
     rotation: [0, 0, 0],
     dockPoint: DOCK_POINT,
-    widthFraction: 0.45,
+    widthFraction: 0.4,
   },
 };
 

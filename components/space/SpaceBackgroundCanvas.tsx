@@ -22,8 +22,8 @@ import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel } from "@/components/station/StationModel";
 import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "@/lib/flightPath";
 import {
+  HERO_SHIP_BREAKPOINT_OVERRIDES,
   HERO_SHIP_POSITION,
-  HERO_SHIP_SCALE,
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
   LOW_POWER_CORE_THRESHOLD,
@@ -180,6 +180,8 @@ function FlightShip({
   // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
   const heroQuat = useMemo(() => new Quaternion(), []);
   const dockQuat = useMemo(() => new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0)), []);
+  const idleSpinRotation = useMemo(() => new Quaternion(), []);
+  const idleSpinAngle = useRef(0);
   const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
 
   useEffect(() => {
@@ -435,13 +437,16 @@ function FlightShip({
     } else {
       expectedScroll.current = null;
     }
-    // Hero dwell: when near top of page, park in hero right half
+    // Hero dwell: keep the station and docked ship centred in the composition.
     const heroDwellEnd = stops.current[1] ?? 0.1; // end of hero → start of toolkit
     const heroBlend = MathUtils.clamp(p / Math.max(0.001, heroDwellEnd * 0.5), 0, 1);
 
     const stationPreset = state.size.width >= STATION_BREAKPOINT_OVERRIDES.desktop.minWidth
       ? STATION_BREAKPOINT_OVERRIDES.desktop
       : STATION_BREAKPOINT_OVERRIDES.tablet;
+    const shipPreset = state.size.width >= HERO_SHIP_BREAKPOINT_OVERRIDES.desktop.minWidth
+      ? HERO_SHIP_BREAKPOINT_OVERRIDES.desktop
+      : HERO_SHIP_BREAKPOINT_OVERRIDES.tablet;
     const aspect = Number.isFinite(state.viewport.aspect) ? Math.max(0.1, state.viewport.aspect) : 1;
     const cameraDistance = Math.max(0.1, (Number.isFinite(heroCameraZ.current) ? heroCameraZ.current : 8) - stationPreset.position[2]);
     const frustumHeight = 2 * cameraDistance * Math.tan(STATION_HERO_CAMERA_FOV * Math.PI / 360);
@@ -455,7 +460,7 @@ function FlightShip({
     const margin = frustumWidth * 0.005;
     const stationX = MathUtils.clamp(
       frustumWidth * stationPreset.position[0],
-      horizontalRadius + margin,
+      -frustumWidth / 2 + horizontalRadius + margin,
       frustumWidth / 2 - horizontalRadius - margin,
     );
     const stationHeight = desiredWidth * STATION_HEIGHT_RATIO;
@@ -495,8 +500,8 @@ function FlightShip({
       );
       shipTarget.lerpVectors(dockedPosition, freePosition, heroBlend);
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
-      const heroScale = MathUtils.lerp(1, HERO_SHIP_SCALE * heroAspectScale, 1 - heroBlend);
-      const dockScale = Math.min(DOCK_HOVER_HEIGHT, HERO_SHIP_SCALE * heroAspectScale);
+      const heroScale = MathUtils.lerp(1, shipPreset.scale * heroAspectScale, 1 - heroBlend);
+      const dockScale = Math.min(DOCK_HOVER_HEIGHT, shipPreset.scale * heroAspectScale);
       const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
       group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
 
@@ -518,7 +523,13 @@ function FlightShip({
         rollRotation.identity();
       }
 
-      orientation.copy(dockQuat).slerp(heroQuat, heroBlend).multiply(pointerRotation).multiply(rollRotation);
+      const shipMotion = rotationMotion.current.ship;
+      if (heroBlend < 0.001 && shipMotion.pointerId === null
+        && now - shipMotion.lastInteraction >= MODEL_ROTATION_IDLE_RESET_SECONDS * 1000) {
+        idleSpinAngle.current += shipPreset.idleSpin * delta;
+      }
+      idleSpinRotation.setFromAxisAngle(rotationAxisY, idleSpinAngle.current * (1 - heroBlend));
+      orientation.copy(dockQuat).slerp(heroQuat, heroBlend).premultiply(idleSpinRotation).multiply(pointerRotation).multiply(rollRotation);
       group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
       enginePower.current = MathUtils.damp(enginePower.current, 1 + flare, 5, delta);
       warp.current = MathUtils.damp(warp.current, 0, 5, delta);

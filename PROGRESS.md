@@ -1,7 +1,7 @@
 # Progress
 Branch: feature/ship-polish
-Done: Removed blue `dockSprite`, station dock point light, tapered dock beam, and ship `dockingPulse` sphere/point light; preserved station model and orange ship engine glow.
+Done: Redesigned hero layout with mirrored HudFrames, centered frustum-sized station, nose-up ship idle spin, and inline static fallback art.
 Next: Toolkit tool labels.
 Then: Small content and metadata fixes.
-Decisions: Removed code-rendered blue lights and their `STATION_DOCK_LIGHT_OFFSET`; no station emissive-material edits were needed. Station and ship placement remain unchanged.
-To tune: `STATION_DIAMETER`, `STATION_HERO_CAMERA_FOV`, station breakpoint transforms, station visibility fallback threshold.
+Decisions: Existing content and Fly to navigation are unchanged. Reduced-motion and fallback modes skip frame draw-in; ship spin pauses during drag and the reset delay.
+To tune: `STATION_BREAKPOINT_OVERRIDES`, `SHIP_IDLE_SPIN`, `HERO_SHIP_BREAKPOINT_OVERRIDES`, HudFrame draw/stagger timings.
