@@ -1,4 +1,5 @@
 import { CatmullRomCurve3, Vector2, Vector3 } from "three";
+import { getHorizontalJourneySectionStops } from "@/lib/horizontalJourney";
 
 export const FLIGHT_SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
 
@@ -174,6 +175,8 @@ export function getFlightSectionId(progress: number, stops: readonly number[]): 
 }
 
 export function getSectionStops(documentHeight: number, viewportHeight: number) {
+  const horizontalStops = getHorizontalJourneySectionStops(documentHeight, viewportHeight);
+  if (horizontalStops) return horizontalStops;
   const maxScroll = Math.max(1, documentHeight - viewportHeight);
   let previous = 0;
   const stops = FLIGHT_SECTION_IDS.map((id) => {

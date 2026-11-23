@@ -39,6 +39,7 @@
 html {
   scroll-behavior: smooth;
   background: var(--bg);
+  overflow-x: clip;
 }
 
 body {
@@ -50,6 +51,7 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: clip;
 }
 
 body::before {
@@ -493,7 +495,7 @@ html.model-grab-active * {
   cursor: grabbing !important;
 }
 
-.space-background--active ~ .hero-page .hero-starfield { display: none; }
+.space-background--active ~ .horizontal-journey .hero-page .hero-starfield { display: none; }
 
 /* Left-side dark scrim behind text column for AA contrast; right half stays clear for the ship. */
 .space-canvas-active .hero-panel::before {
@@ -509,12 +511,12 @@ html.model-grab-active * {
   border-radius: inherit;
 }
 
-.space-background--fallback.space-background--image ~ .hero-page .hero-panel {
+.space-background--fallback.space-background--image ~ .horizontal-journey .hero-page .hero-panel {
   background: transparent;
   box-shadow: none;
 }
 
-.space-background--fallback.space-background--image ~ .hero-page .hero-panel::before {
+.space-background--fallback.space-background--image ~ .horizontal-journey .hero-page .hero-panel::before {
   position: absolute;
   z-index: 1;
   inset: 0;
@@ -974,8 +976,8 @@ html.model-grab-active * {
 .space-canvas-active .space-background__image { will-change: transform; }
 .space-canvas-active .space-background__stars { display: none; }
 
-.space-background-present main > .hero-page,
-.space-background-present main > .content-section {
+.space-background-present main .hero-page,
+.space-background-present main .content-section {
   position: relative;
   z-index: 1;
 }
@@ -1011,8 +1013,8 @@ html.model-grab-active * {
 
 .space-canvas-active .space-background__stars { display: none; }
 
-.space-background-present main > .hero-page,
-.space-background-present main > .content-section {
+.space-background-present main .hero-page,
+.space-background-present main .content-section {
   position: relative;
   z-index: 1;
 }
@@ -1175,6 +1177,81 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   .hero-ship-trigger { left: 29%; width: 42%; }
 }
 
+.horizontal-journey--active {
+  position: relative;
+  width: 100%;
+}
+
+.horizontal-journey--active .horizontal-journey__viewport {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100svh;
+  overflow: clip;
+}
+
+.horizontal-journey--active .horizontal-journey__track {
+  display: flex;
+  width: max-content;
+  height: 100%;
+  will-change: transform;
+}
+
+.horizontal-journey--active .horizontal-journey__panel {
+  display: flex;
+  width: var(--journey-panel-width, 100vw);
+  height: 100svh;
+  max-height: 100svh;
+  flex: 0 0 var(--journey-panel-width, 100vw);
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rust) transparent;
+}
+
+.horizontal-journey--active .content-section {
+  max-height: calc(100svh - 28px);
+  overflow-y: auto;
+}
+
+.horizontal-journey--active .content-section + .content-section {
+  border-top: 1px solid rgb(196 122 32 / 13%);
+}
+
+.horizontal-journey--active .hero-page {
+  width: 100%;
+  max-height: 100svh;
+  overflow-y: auto;
+}
+
+.horizontal-journey--active .hero-panel {
+  min-height: min(clamp(680px, 86svh, 900px), calc(100svh - 28px));
+}
+
+.horizontal-journey:not(.horizontal-journey--active) .horizontal-journey__viewport,
+.horizontal-journey:not(.horizontal-journey--active) .horizontal-journey__track {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  transform: none !important;
+}
+
+.horizontal-journey:not(.horizontal-journey--active) .horizontal-journey__track {
+  display: block;
+}
+
+.horizontal-journey:not(.horizontal-journey--active) .horizontal-journey__panel {
+  width: 100%;
+  min-height: 0;
+  padding-block: 12px;
+}
+
+.horizontal-journey:not(.horizontal-journey--active) .content-section {
+  max-height: none;
+  overflow: visible;
+}
+
 .content-section,
 .inner-page {
   width: min(100% - 40px, 1120px);
@@ -1189,7 +1266,7 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 }
 
 @media (min-width: 1024px) {
-  .space-background-present main > .content-section {
+  .space-background-present main .content-section {
     --parked-ship-gutter: clamp(150px, 16vw, 280px);
     width: min(calc(100vw - 40px - var(--parked-ship-gutter)), 1120px);
     margin-left: max(20px, calc((100vw - 1120px) / 2));
@@ -1831,6 +1908,27 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .horizontal-journey--active { height: auto !important; }
+  .horizontal-journey--active .horizontal-journey__viewport,
+  .horizontal-journey--active .horizontal-journey__track {
+    position: static;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    transform: none !important;
+  }
+  .horizontal-journey--active .horizontal-journey__track { display: block; }
+  .horizontal-journey--active .horizontal-journey__panel {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    padding-block: 12px;
+  }
+  .horizontal-journey--active .content-section,
+  .horizontal-journey--active .hero-page { max-height: none; overflow: visible; }
+
   *,
   *::before,
   *::after {
@@ -1878,6 +1976,26 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 }
 
 @media (max-width: 767px) {
+  .horizontal-journey--active { height: auto !important; }
+  .horizontal-journey--active .horizontal-journey__viewport,
+  .horizontal-journey--active .horizontal-journey__track {
+    position: static;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    transform: none !important;
+  }
+  .horizontal-journey--active .horizontal-journey__track { display: block; }
+  .horizontal-journey--active .horizontal-journey__panel {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    padding-block: 12px;
+  }
+  .horizontal-journey--active .content-section,
+  .horizontal-journey--active .hero-page { max-height: none; overflow: visible; }
   .space-background--image .space-background__image {
     background-image: url("/backgrounds/planetary-sunrise-mobile.webp");
     background-position: center 60%;

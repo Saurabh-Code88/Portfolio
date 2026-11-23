@@ -23,18 +23,28 @@ export function CockpitFrame() {
       .filter((section): section is HTMLElement => Boolean(section));
     const positions = new Map<HTMLElement, number>();
     const observer = new IntersectionObserver((entries) => {
+      const horizontal = Boolean(document.querySelector("[data-horizontal-journey='active']"));
       for (const entry of entries) {
-        if (entry.isIntersecting) positions.set(entry.target as HTMLElement, entry.boundingClientRect.top);
+        if (entry.isIntersecting) {
+          const rect = entry.boundingClientRect;
+          positions.set(entry.target as HTMLElement, horizontal ? rect.left + rect.width / 2 : rect.top);
+        }
         else positions.delete(entry.target as HTMLElement);
       }
       const active = [...positions.entries()].sort(
-        (a, b) => Math.abs(a[1] - window.innerHeight * 0.28) - Math.abs(b[1] - window.innerHeight * 0.28),
+        (a, b) => Math.abs(a[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28))
+          - Math.abs(b[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28)),
       )[0]?.[0];
       if (!active) return;
       const sectionId = active.id || "hero";
       const index = sectionReadouts.findIndex(({ id }) => id === sectionId);
       if (index >= 0) setActiveIndex(index);
-    }, { rootMargin: "-18% 0px -70% 0px", threshold: 0 });
+    }, {
+      rootMargin: document.querySelector("[data-horizontal-journey='active']")
+        ? "-18% -45% -70% -45%"
+        : "-18% 0px -70% 0px",
+      threshold: 0,
+    });
 
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();

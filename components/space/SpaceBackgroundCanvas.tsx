@@ -20,6 +20,7 @@ import {
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
+import { getHorizontalJourneyProjectedRect } from "@/lib/horizontalJourney";
 import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
@@ -92,9 +93,10 @@ type OrbitBounds = { left: number; right: number; centerX: number; centerY: numb
 
 function getOrbitBounds(sectionId: FlightSectionId, targetScroll: number, width: number, height: number): OrbitBounds {
   const section = document.getElementById(sectionId);
-  const rect = section?.getBoundingClientRect();
+  const journeyRect = section ? getHorizontalJourneyProjectedRect(section, targetScroll) : null;
+  const rect = section && (journeyRect ?? section.getBoundingClientRect());
   if (!rect) return { left: width * 0.18, right: width * 0.82, centerX: width / 2, centerY: height / 2, radiusX: width * 0.32, radiusY: height * 0.28 };
-  const projectedTop = rect.top + window.scrollY - targetScroll;
+  const projectedTop = journeyRect ? rect.top : rect.top + window.scrollY - targetScroll;
   const projectedBottom = projectedTop + rect.height;
   const headerBottom = document.querySelector<HTMLElement>(".site-header")?.getBoundingClientRect().bottom ?? 0;
   const top = Math.max(headerBottom + 12, projectedTop, 0);

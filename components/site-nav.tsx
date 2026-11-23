@@ -35,16 +35,26 @@ export function SiteNav() {
 
     const positions = new Map<string, number>();
     const observer = new IntersectionObserver((entries) => {
+      const horizontal = Boolean(document.querySelector("[data-horizontal-journey='active']"));
       for (const entry of entries) {
         const key = (entry.target as HTMLElement).dataset.flightSection || entry.target.id;
-        if (entry.isIntersecting) positions.set(key, entry.boundingClientRect.top);
+        if (entry.isIntersecting) {
+          const rect = entry.boundingClientRect;
+          positions.set(key, horizontal ? rect.left + rect.width / 2 : rect.top);
+        }
         else positions.delete(key);
       }
       const nearest = [...positions.entries()].sort(
-        (a, b) => Math.abs(a[1] - window.innerHeight * 0.28) - Math.abs(b[1] - window.innerHeight * 0.28),
+        (a, b) => Math.abs(a[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28))
+          - Math.abs(b[1] - (horizontal ? document.documentElement.clientWidth / 2 : window.innerHeight * 0.28)),
       )[0];
       if (nearest) setActiveId(nearest[0] === "hero" ? null : nearest[0] as (typeof navigation)[number]["id"]);
-    }, { rootMargin: "-18% 0px -70% 0px", threshold: 0 });
+    }, {
+      rootMargin: document.querySelector("[data-horizontal-journey='active']")
+        ? "-18% -45% -70% -45%"
+        : "-18% 0px -70% 0px",
+      threshold: 0,
+    });
 
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();

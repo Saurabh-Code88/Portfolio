@@ -3,6 +3,7 @@
 import { animate, type AnimationPlaybackControls } from "framer-motion";
 import { useEffect } from "react";
 import { easeInOutCubic, flightProgressStore, FLIGHT_SECTION_IDS } from "@/lib/flightPath";
+import { getHorizontalJourneyScrollTarget } from "@/lib/horizontalJourney";
 
 const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .research-panel, .experience-entry, .education-column, .contact-links";
 
@@ -60,9 +61,10 @@ export function SectionRevealController() {
       if (state.phase === "idle" && previousPhase !== "idle") {
         if (previousTarget) restoreSection(previousTarget);
         previousTarget = null;
-        document.querySelectorAll<HTMLElement>("main > .content-section").forEach((section) => {
+        document.querySelectorAll<HTMLElement>("main .content-section").forEach((section) => {
           const rect = section.getBoundingClientRect();
-          if (rect.bottom > 0 && rect.top < window.innerHeight) {
+          const horizontalVisible = rect.right > 0 && rect.left < window.innerWidth;
+          if (horizontalVisible && rect.bottom > 0 && rect.top < window.innerHeight) {
             revealTargets(section.id).forEach((element, index) => {
               if (!revealed.has(element)) reveal(element, index, false);
             });
@@ -95,7 +97,8 @@ export function SectionRevealController() {
       cancelFallbackScroll();
       const scrollMargin = Number.parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
       const from = window.scrollY;
-      const to = Math.max(0, target.getBoundingClientRect().top + from - scrollMargin);
+      const horizontalTarget = getHorizontalJourneyScrollTarget(target);
+      const to = Math.max(0, horizontalTarget ?? target.getBoundingClientRect().top + from - scrollMargin);
       if (duration <= 0) {
         window.scrollTo({ top: to, behavior: "instant" });
         return;

@@ -6,18 +6,21 @@ import { ContactSection } from "@/components/contact-section";
 import { ToolkitSection } from "@/components/toolkit-section";
 import { SpaceBackground } from "@/components/space/SpaceBackground";
 import { SectionRevealController } from "@/components/section-reveal-controller";
+import { HorizontalJourney } from "@/components/horizontal-journey";
 
 export default function Home() {
   return (
     <main id="main-content" tabIndex={-1}>
       <SpaceBackground />
       <SectionRevealController />
-      <Hero />
-      <ToolkitSection />
-      <ProjectsSection />
-      <ResearchSection />
-      <ExperienceSection />
-      <ContactSection />
+      <HorizontalJourney>
+        <Hero />
+        <ToolkitSection />
+        <ProjectsSection />
+        <ResearchSection />
+        <ExperienceSection />
+        <ContactSection />
+      </HorizontalJourney>
     </main>
   );
 }
