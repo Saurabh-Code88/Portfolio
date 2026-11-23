@@ -36,22 +36,36 @@ function disposeScene(model: Group) {
   });
 }
 
+export type StationRenderQuality = "normal" | "reduced";
+
+const FPS_SAMPLE_WINDOW_SECONDS = 1.5;
+const FPS_LOW_THRESHOLD = 30;
+const FPS_RECOVERY_THRESHOLD = 45;
+const FPS_LOW_WINDOWS_TO_REDUCE = 2;
+const FPS_RECOVERY_WINDOWS_TO_RESTORE = 3;
+const FPS_QUALITY_COOLDOWN_SECONDS = 3;
+const DEV_LOW_FPS_SIMULATION_SECONDS = 8;
+
 export function StationModel({
   preview = false,
   scale = STATION_SCALE,
-  onSlowFrame,
+  onQualityChange,
   onBounds,
 }: {
   preview?: boolean;
   scale?: number;
-  onSlowFrame?: () => void;
+  onQualityChange?: (quality: StationRenderQuality) => void;
   onBounds?: (size: readonly [number, number, number]) => void;
 }) {
   const { scene } = useGLTF("/models/station.glb", true, true);
   const model = useMemo(() => cloneTexturedScene(scene), [scene]);
   const group = useRef<Group>(null);
-  const frameWindow = useRef({ elapsed: 0, count: 0, slowWindows: 0, hidden: false });
+  const frameWindow = useRef({ elapsed: 0, count: 0, lowWindows: 0, recoveryWindows: 0, quality: "normal" as StationRenderQuality, lastQualityChangeAt: Number.NEGATIVE_INFINITY });
+  const lowFpsSimulation = useRef({ enabled: false, startedAt: 0 });
   const monitorStartedAt = useRef(0);
+  const hasLoggedMount = useRef(false);
+  const lifecycleLogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deferredDisposals = useRef(new Map<Group, ReturnType<typeof setTimeout>>());
   const diagnosticElapsed = useRef(0);
   const previousSnapshot = useRef<Map<string, { position: number[]; quaternion: number[]; scale: number[]; visible: boolean }> | null>(null);
   const diagnosticWarnings = useRef(new Set<string>());
@@ -71,9 +85,24 @@ export function StationModel({
 
   useEffect(() => {
     monitorStartedAt.current = performance.now();
-    if (process.env.NODE_ENV === "development") console.info("[station] mounted");
+    if (process.env.NODE_ENV === "development") {
+      if (lifecycleLogTimer.current) clearTimeout(lifecycleLogTimer.current);
+      lifecycleLogTimer.current = null;
+      if (!hasLoggedMount.current) console.info("[station] mounted");
+      hasLoggedMount.current = true;
+      if (!lowFpsSimulation.current.enabled && new URLSearchParams(window.location.search).get("stationFpsTest") === "1") {
+        lowFpsSimulation.current.enabled = true;
+        lowFpsSimulation.current.startedAt = performance.now();
+        console.info(`[station] low-FPS simulation enabled; ${DEV_LOW_FPS_SIMULATION_SECONDS}s low, then recovery`);
+      }
+    }
     return () => {
-      if (process.env.NODE_ENV === "development") console.info("[station] unmounted");
+      if (process.env.NODE_ENV === "development") {
+        lifecycleLogTimer.current = setTimeout(() => {
+          console.info("[station] unmounted");
+          lifecycleLogTimer.current = null;
+        }, 0);
+      }
     };
   }, []);
 
@@ -81,7 +110,21 @@ export function StationModel({
     if (preview) onBounds?.([size.x, size.y, size.z]);
   }, [onBounds, preview, size]);
 
-  useEffect(() => () => disposeScene(model), [model]);
+  useEffect(() => {
+    const disposalTimers = deferredDisposals.current;
+    const existingTimer = disposalTimers.get(model);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      disposalTimers.delete(model);
+    }
+    return () => {
+      const timer = setTimeout(() => {
+        disposeScene(model);
+        disposalTimers.delete(model);
+      }, 0);
+      disposalTimers.set(model, timer);
+    };
+  }, [model]);
 
   useEffect(() => {
     normalizedModel.current?.updateWorldMatrix(true, true);
@@ -94,22 +137,52 @@ export function StationModel({
 
   useFrame((state, delta) => {
     if (!group.current) return;
-    if (!preview && document.visibilityState !== "visible") {
+    const simulateLowFps = process.env.NODE_ENV === "development" && lowFpsSimulation.current.enabled;
+    if (!preview && document.visibilityState !== "visible" && !simulateLowFps) {
       frameWindow.current.elapsed = 0;
       frameWindow.current.count = 0;
-      frameWindow.current.slowWindows = 0;
+      frameWindow.current.lowWindows = 0;
+      frameWindow.current.recoveryWindows = 0;
     } else if (!preview && performance.now() - monitorStartedAt.current >= 2000) {
       frameWindow.current.elapsed += delta;
       frameWindow.current.count += 1;
-      if (frameWindow.current.elapsed >= 1.5) {
-        const measuredFps = frameWindow.current.count / frameWindow.current.elapsed;
-        frameWindow.current.slowWindows = measuredFps < 30 ? frameWindow.current.slowWindows + 1 : 0;
-        if (frameWindow.current.slowWindows >= 2 && !frameWindow.current.hidden) {
-          frameWindow.current.hidden = true;
-          if (process.env.NODE_ENV === "development") {
-            console.warn(`[station] hidden after sustained low frame rate (${measuredFps.toFixed(1)} FPS)`);
+      if (frameWindow.current.elapsed >= FPS_SAMPLE_WINDOW_SECONDS) {
+        const now = performance.now() / 1000;
+        const simulationElapsed = (performance.now() - lowFpsSimulation.current.startedAt) / 1000;
+        const simulatedLowFps = lowFpsSimulation.current.enabled && simulationElapsed < DEV_LOW_FPS_SIMULATION_SECONDS;
+        const measuredFps = lowFpsSimulation.current.enabled
+          ? simulatedLowFps ? 20 : 60
+          : frameWindow.current.count / frameWindow.current.elapsed;
+        const windowState = frameWindow.current;
+
+        if (windowState.quality === "normal") {
+          windowState.lowWindows = measuredFps < FPS_LOW_THRESHOLD ? windowState.lowWindows + 1 : 0;
+          windowState.recoveryWindows = 0;
+          if (windowState.lowWindows >= FPS_LOW_WINDOWS_TO_REDUCE && now - windowState.lastQualityChangeAt >= FPS_QUALITY_COOLDOWN_SECONDS) {
+            windowState.quality = "reduced";
+            windowState.lastQualityChangeAt = now;
+            windowState.lowWindows = 0;
+            onQualityChange?.("reduced");
+            if (process.env.NODE_ENV === "development") {
+              console.info(`[station] quality reduced after sustained low FPS (${measuredFps.toFixed(1)} FPS); station remains mounted`, {
+                userRotation: group.current?.parent?.quaternion.toArray(),
+              });
+            }
           }
-          onSlowFrame?.();
+        } else {
+          windowState.recoveryWindows = measuredFps >= FPS_RECOVERY_THRESHOLD ? windowState.recoveryWindows + 1 : 0;
+          windowState.lowWindows = 0;
+          if (windowState.recoveryWindows >= FPS_RECOVERY_WINDOWS_TO_RESTORE && now - windowState.lastQualityChangeAt >= FPS_QUALITY_COOLDOWN_SECONDS) {
+            windowState.quality = "normal";
+            windowState.lastQualityChangeAt = now;
+            windowState.recoveryWindows = 0;
+            onQualityChange?.("normal");
+            if (process.env.NODE_ENV === "development") {
+              console.info(`[station] quality restored after sustained recovery (${measuredFps.toFixed(1)} FPS); station remains mounted`, {
+                userRotation: group.current?.parent?.quaternion.toArray(),
+              });
+            }
+          }
         }
         frameWindow.current.elapsed = 0;
         frameWindow.current.count = 0;

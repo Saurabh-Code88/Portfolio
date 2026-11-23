@@ -19,7 +19,7 @@ import {
   Vector3,
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
-import { StationModel } from "@/components/station/StationModel";
+import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
 import { FLIGHT_SECTION_IDS, easeInOutCubic, easeInOutSine, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleFlight, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
@@ -197,10 +197,12 @@ function FlightShip({
   ready,
   progress,
   warp,
+  onStationQualityChange,
 }: {
   ready: MutableRefObject<boolean>;
   progress: MotionValue<number>;
   warp: MutableRefObject<number>;
+  onStationQualityChange: (quality: StationRenderQuality) => void;
 }) {
   const group = useRef<Group>(null);
   const shipUserGroup = useRef<Group>(null);
@@ -211,7 +213,6 @@ function FlightShip({
   const heroCameraZ = useRef(camera.position.z);
   const shipNoseOffset = useRef(HERO_SHIP_NOSE_OFFSET);
   const [stationReady, setStationReady] = useState(false);
-  const [stationEnabled, setStationEnabled] = useState(true);
   const trail = useRef<Group>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const rollStart = useRef<number | null>(null);
@@ -266,15 +267,6 @@ function FlightShip({
   const modelMeasured = useCallback((bounds: { nose: number }) => {
     if (Number.isFinite(bounds.nose) && bounds.nose > 0) shipNoseOffset.current = bounds.nose;
   }, []);
-
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.info(`[station] render ${stationEnabled ? "enabled" : "disabled"}`, {
-        mounted: stationReady,
-        reason: stationEnabled ? "default" : "sustained low frame rate callback",
-      });
-    }
-  }, [stationEnabled, stationReady]);
 
   useEffect(() => {
     const roots = (): { key: ModelKey; root: Group }[] => [
@@ -893,10 +885,10 @@ function FlightShip({
     <>
       <group ref={stationGroup}>
         <group ref={stationUserGroup}>
-          {stationReady && stationEnabled && (
+          {stationReady && (
             <StationErrorBoundary>
               <Suspense fallback={null}>
-                <StationModel onSlowFrame={() => setStationEnabled(false)} />
+                <StationModel onQualityChange={onStationQualityChange} />
               </Suspense>
             </StationErrorBoundary>
           )}
@@ -916,7 +908,13 @@ function FlightShip({
   );
 }
 
-function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
+function BackgroundScene({
+  progress,
+  onStationQualityChange,
+}: {
+  progress: MotionValue<number>;
+  onStationQualityChange: (quality: StationRenderQuality) => void;
+}) {
   const gl = useThree((state) => state.gl);
   const [bloomEnabled, setBloomEnabled] = useState(false);
   const loaded = useRef(false);
@@ -986,7 +984,7 @@ function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
         <Stars radius={23} depth={20} count={130} factor={3.2} saturation={0.34} fade speed={0.09} />
       </group>
       <HyperspaceStreaks ready={loaded} warp={warp} />
-      <FlightShip ready={loaded} progress={progress} warp={warp} />
+      <FlightShip ready={loaded} progress={progress} warp={warp} onStationQualityChange={onStationQualityChange} />
       {bloomEnabled && (
         <EffectComposer>
           <Bloom luminanceThreshold={1} luminanceSmoothing={0.08} intensity={0.8} mipmapBlur />
@@ -997,14 +995,16 @@ function BackgroundScene({ progress }: { progress: MotionValue<number> }) {
 }
 
 export default function SpaceBackgroundCanvas({ scrollProgress }: { scrollProgress: MotionValue<number> }) {
+  const [stationQuality, setStationQuality] = useState<StationRenderQuality>("normal");
+
   return (
     <Canvas
       camera={{ position: [0, 0, 8], fov: STATION_HERO_CAMERA_FOV, near: 0.1, far: 120 }}
-      dpr={[1, 1.5]}
+      dpr={stationQuality === "reduced" ? 1 : [1, 1.5]}
       gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       style={{ background: "transparent" }}
     >
-      <BackgroundScene progress={scrollProgress} />
+      <BackgroundScene progress={scrollProgress} onStationQualityChange={setStationQuality} />
     </Canvas>
   );
 }
