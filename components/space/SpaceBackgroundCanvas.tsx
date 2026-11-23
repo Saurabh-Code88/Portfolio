@@ -141,6 +141,9 @@ function FlightShip({
   const rollStart = useRef<number | null>(null);
   const lastRoll = useRef(0);
   const displayedProgress = useRef(0);
+  const shipAnchorTimer = useRef(0);
+  const shipAnchorWorld = useMemo(() => new Vector3(), []);
+  const shipAnchorScreen = useMemo(() => new Vector3(), []);
   const progressInitialized = useRef(false);
   const navFlight = useRef<{ from: number; to: number; startedAt: number; duration: number } | null>(null);
   const expectedScroll = useRef<number | null>(null);
@@ -548,6 +551,21 @@ function FlightShip({
         camera.fov = MathUtils.damp(camera.fov, 48, 3.4, delta);
         camera.updateProjectionMatrix();
       }
+      shipAnchorTimer.current += delta;
+      if (shipAnchorTimer.current >= 1 / 30) {
+        shipAnchorTimer.current %= 1 / 30;
+        group.current.updateWorldMatrix(true, false);
+        camera.updateMatrixWorld();
+        shipAnchorScreen.copy(group.current.getWorldPosition(shipAnchorWorld)).project(camera);
+        const rect = gl.domElement.getBoundingClientRect();
+        window.dispatchEvent(new CustomEvent("portfolio:ship-screen-position", {
+          detail: {
+            x: rect.left + (shipAnchorScreen.x + 1) * rect.width / 2,
+            y: rect.top + (1 - shipAnchorScreen.y) * rect.height / 2,
+            opacity: 1 - heroBlend,
+          },
+        }));
+      }
       return;
     }
 
@@ -594,6 +612,21 @@ function FlightShip({
     if (camera instanceof PerspectiveCamera) {
       camera.fov = MathUtils.damp(camera.fov, 48 + sample.warp * 11, 3.4, delta);
       camera.updateProjectionMatrix();
+    }
+    shipAnchorTimer.current += delta;
+    if (shipAnchorTimer.current >= 1 / 30) {
+      shipAnchorTimer.current %= 1 / 30;
+      group.current.updateWorldMatrix(true, false);
+      camera.updateMatrixWorld();
+      shipAnchorScreen.copy(group.current.getWorldPosition(shipAnchorWorld)).project(camera);
+      const rect = gl.domElement.getBoundingClientRect();
+      window.dispatchEvent(new CustomEvent("portfolio:ship-screen-position", {
+        detail: {
+          x: rect.left + (shipAnchorScreen.x + 1) * rect.width / 2,
+          y: rect.top + (1 - shipAnchorScreen.y) * rect.height / 2,
+          opacity: 0,
+        },
+      }));
     }
   });
 
