@@ -1,7 +1,7 @@
 # Progress
 Branch: feature/cockpit-hud
-Done: Added readout-driven curve flights, synchronized scrolling, viewport-fixed ship parking, and a desktop content gutter.
+Done: Added readout-triggered travel, section orbit, settle-to-park, phase store, section reveals, and /dev/flight timing controls.
 Next: Toolkit tool labels.
 Then: Small content and metadata fixes.
-Decisions: Manual section scrolling keeps the ship parked; clicking the home logo flies back to the station. Reduced-motion and fallback modes retain normal anchor navigation.
-To tune: PARK_X, PARK_Y, PARK_SCALE, PARK_DEPTH, PARK_HOVER_AMPLITUDE, READOUT_FLIGHT_DURATION_MS, and desktop parked-ship gutter.
+Decisions: Active desktop flights use eased JavaScript scrolling and the section's visible bounds; fallback and reduced-motion navigation do not animate the ship.
+To tune: ORBIT_TURNS, ORBIT_DURATION, TRAVEL_DURATION, SETTLE_DURATION, ORBIT_RADIUS_X, ORBIT_RADIUS_Y, ORBIT_TILT, and /dev/flight speed.
