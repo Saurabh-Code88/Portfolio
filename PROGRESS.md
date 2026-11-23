@@ -1,7 +1,7 @@
 # Progress
 Branch: feature/cinematic-space-redesign
-Done: Added station transform, visibility, mount, and render-state diagnostics for development.
-Next: Reproduce station disappearance with sustained drag, section navigation, and scroll; then fix only the confirmed trigger.
-Root cause: Not reproduced in over 60 seconds; the only known station-removal path is the sustained-low-FPS callback after two windows below 30 FPS.
-Decisions: No behavior changes without reproduction evidence; GLTF clones remain isolated from cached source assets.
-To tune: Diagnostic sampling interval (0.5s) and transform-change threshold (0.08 world units).
+Done: Replaced destructive station FPS removal with reversible DPR quality fallback; dev simulation verified low-FPS and recovery transitions without unmount.
+Next: Continue section-mapped planetary and nebula transitions in the existing DOM/CSS background stack.
+Root cause: Removed confirmed low-FPS station-removal path; this does not establish the cause of every previously reported disappearance.
+Decisions: Keep interaction and station mounted; reduce Canvas DPR to 1 after two <30 FPS windows, restore after three >=45 FPS windows with a 3s cooldown.
+To tune: 1.5s sample window, 30/45 FPS thresholds, 2/3 hysteresis windows, 3s cooldown, 8s dev simulation.
