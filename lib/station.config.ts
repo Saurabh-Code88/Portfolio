@@ -15,7 +15,8 @@ export const STATION_ROTATION: readonly [number, number, number] = [0, 0, 0];
 export const DOCK_POINT: readonly [number, number, number] = [0, 0.76, 0];
 export const STATION_YAW_DRIFT = 0.00012;
 export const STATION_HEIGHT_RATIO = 0.35 / 1.19;
-export const DOCK_HOVER_HEIGHT = 1.65;
+export const DOCK_HOVER_HEIGHT = 1.2;
+export const DOCK_ENGINE_CLEARANCE = 0.12;
 
 export const STATION_BREAKPOINT_OVERRIDES: Record<StationBreakpointName, StationTransform & { minWidth: number }> = {
   desktop: {

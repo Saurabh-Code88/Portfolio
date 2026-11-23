@@ -15,12 +15,17 @@ export const scale = 1;
 export const HERO_SHIP_POSITION: readonly [number, number, number] = [1.5, -0.1, 0];
 
 // Hero-only size multiplier; fades back to 1 as the ship leaves the hero.
-export const HERO_SHIP_SCALE = 2.5;
+export const HERO_SHIP_SCALE = 1.2;
+export const HERO_SHIP_NOSE_OFFSET = 1.05;
+export const HERO_SHIP_TOP_RESERVE = 0.06;
+export const HERO_SHIP_HEADER_HEIGHT = 68;
+export const HERO_SHIP_TOP_CLEARANCE = 0.035;
+export const HERO_SHIP_CAMERA_TARGET_Y = 0.55;
 export const SHIP_IDLE_SPIN = 0.15;
 
 export const HERO_SHIP_BREAKPOINT_OVERRIDES = {
   desktop: { minWidth: 1024, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },
-  tablet: { minWidth: 768, scale: 2.2, idleSpin: SHIP_IDLE_SPIN },
+  tablet: { minWidth: 768, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },
 } as const;
 
 // Three-quarter rotation (radians): nose toward upper-right.

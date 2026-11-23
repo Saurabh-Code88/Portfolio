@@ -181,9 +181,9 @@ pre {
 
 .hero-page {
   display: grid;
-  min-height: 100svh;
+  min-height: calc(100svh - 68px);
   place-items: center;
-  padding: 24px clamp(16px, 2vw, 38px);
+  padding: 8px clamp(16px, 2vw, 38px);
 }
 
 .hero {

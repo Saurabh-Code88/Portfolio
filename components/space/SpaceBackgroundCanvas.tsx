@@ -23,18 +23,25 @@ import { StationModel } from "@/components/station/StationModel";
 import { FLIGHT_SECTION_IDS, flightCurve, getSectionStops, sampleFlight } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
+  HERO_SHIP_CAMERA_TARGET_Y,
+  HERO_SHIP_HEADER_HEIGHT,
+  HERO_SHIP_NOSE_OFFSET,
   HERO_SHIP_POSITION,
+  HERO_SHIP_TOP_RESERVE,
+  HERO_SHIP_TOP_CLEARANCE,
   HERO_BOB_AMPLITUDE,
   HERO_BOB_SPEED,
   LOW_POWER_CORE_THRESHOLD,
 } from "@/lib/ship.config";
 import {
   DOCK_HOVER_HEIGHT,
+  DOCK_ENGINE_CLEARANCE,
   STATION_BREAKPOINT_OVERRIDES,
   STATION_DIAMETER,
   STATION_HEIGHT_RATIO,
   STATION_HERO_CAMERA_FOV,
   STATION_SCALE,
+  STATION_POSITION,
   STATION_YAW_DRIFT,
 } from "@/lib/station.config";
 import {
@@ -134,6 +141,7 @@ function FlightShip({
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const heroCameraZ = useRef(camera.position.z);
+  const shipNoseOffset = useRef(HERO_SHIP_NOSE_OFFSET);
   const [stationReady, setStationReady] = useState(false);
   const [stationEnabled, setStationEnabled] = useState(true);
   const trail = useRef<Group>(null);
@@ -183,6 +191,9 @@ function FlightShip({
   const idleSpinRotation = useMemo(() => new Quaternion(), []);
   const idleSpinAngle = useRef(0);
   const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
+  const modelMeasured = useCallback((bounds: { nose: number }) => {
+    if (Number.isFinite(bounds.nose) && bounds.nose > 0) shipNoseOffset.current = bounds.nose;
+  }, []);
 
   useEffect(() => {
     const roots = (): { key: ModelKey; root: Group }[] => [
@@ -464,12 +475,12 @@ function FlightShip({
       frustumWidth / 2 - horizontalRadius - margin,
     );
     const stationHeight = desiredWidth * STATION_HEIGHT_RATIO;
-    const stationY = MathUtils.clamp(
-      frustumHeight * stationPreset.position[1],
-      -frustumHeight / 2 + stationHeight / 2 + margin,
-      frustumHeight / 2 - stationHeight / 2 - margin,
+    const heroAspectScale = Math.max(1, aspect / 1.6);
+    const dockScale = Math.min(DOCK_HOVER_HEIGHT, shipPreset.scale * heroAspectScale);
+    const dockedHoverOffset = Math.min(
+      DOCK_HOVER_HEIGHT,
+      dockScale * 0.78 + DOCK_ENGINE_CLEARANCE,
     );
-    stationPosition.set(stationX, stationY, stationPreset.position[2]);
     dockLocal.set(...stationPreset.dockPoint);
     stationEuler.set(
       stationPreset.rotation[0],
@@ -477,6 +488,20 @@ function FlightShip({
       stationPreset.rotation[2],
     );
     dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
+    const headerAndGap = HERO_SHIP_HEADER_HEIGHT + state.size.height * HERO_SHIP_TOP_CLEARANCE;
+    const targetShipNoseY = frustumHeight / 2
+      - (headerAndGap / Math.max(1, state.size.height)) * frustumHeight;
+    const desiredStationY = targetShipNoseY
+      - (shipNoseOffset.current + HERO_SHIP_TOP_RESERVE) * dockScale
+      - dockedHoverOffset
+      - dockOffset.y
+      + frustumHeight * (stationPreset.position[1] - STATION_POSITION[1]);
+    const stationY = MathUtils.clamp(
+      desiredStationY,
+      -frustumHeight / 2 + stationHeight / 2 + margin,
+      frustumHeight / 2 - stationHeight / 2 - margin,
+    );
+    stationPosition.set(stationX, stationY, stationPreset.position[2]);
     if (stationGroup.current) {
       stationGroup.current.visible = true;
       stationGroup.current.position.copy(stationPosition);
@@ -486,11 +511,10 @@ function FlightShip({
 
     if (heroBlend < 1) {
       // ── Hero parking position with idle bob ──
-      const heroAspectScale = state.viewport.aspect / 1.6;
       const bobY = Math.sin(state.clock.elapsedTime * HERO_BOB_SPEED) * HERO_BOB_AMPLITUDE;
       dockedPosition.set(
         stationPosition.x + dockOffset.x,
-        stationPosition.y + dockOffset.y + DOCK_HOVER_HEIGHT + bobY * 0.35,
+        stationPosition.y + dockOffset.y + dockedHoverOffset + bobY * 0.35,
         stationPosition.z + dockOffset.z,
       );
       freePosition.set(
@@ -501,7 +525,6 @@ function FlightShip({
       shipTarget.lerpVectors(dockedPosition, freePosition, heroBlend);
       group.current.position.lerp(shipTarget, 1 - Math.exp(-delta * 3.5));
       const heroScale = MathUtils.lerp(1, shipPreset.scale * heroAspectScale, 1 - heroBlend);
-      const dockScale = Math.min(DOCK_HOVER_HEIGHT, shipPreset.scale * heroAspectScale);
       const activeShipScale = MathUtils.lerp(dockScale, heroScale, heroBlend);
       group.current.scale.setScalar(MathUtils.damp(group.current.scale.x, activeShipScale, 4, delta));
 
@@ -540,7 +563,7 @@ function FlightShip({
 
       // Camera stays centred
       const camera = state.camera;
-      cameraTarget.set(0, 0.55, 8);
+      cameraTarget.set(0, HERO_SHIP_CAMERA_TARGET_Y, 8);
       camera.position.lerp(cameraTarget, 1 - Math.exp(-delta * 1.55));
       cameraLookAt.set(0, 0, 0);
       camera.lookAt(cameraLookAt);
@@ -613,7 +636,7 @@ function FlightShip({
       <group ref={group}>
         <group ref={shipUserGroup}>
           <Suspense fallback={null}>
-            <ShipModel labels={false} onLoad={modelLoaded} enginePower={enginePower} />
+            <ShipModel labels={false} onLoad={modelLoaded} onBounds={modelMeasured} enginePower={enginePower} />
           </Suspense>
           <group ref={trail} position={[0, 0, -0.5]} visible={false}>
             <Sparkles count={24} scale={[0.35, 0.35, 0.9]} size={2} speed={0.55} color="#6cb8ff" opacity={0.82} />
