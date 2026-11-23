@@ -1,7 +1,7 @@
 # Progress
 Branch: feature/cockpit-hud
-Done: Fitted the docked ship below the header and kept the station within the frustum at desktop and tablet sizes.
+Done: Added the fixed cockpit frame, section readout, active-section state, and header skip link; removed the hero Fly to bar and outline.
 Next: Toolkit tool labels.
 Then: Small content and metadata fixes.
-Decisions: Station width remains frustum-based; ship nose clearance is derived from measured model bounds and viewport height. Header height assumption: 68px.
-To tune: `HERO_SHIP_SCALE`, `HERO_SHIP_TOP_CLEARANCE`, `HERO_SHIP_TOP_RESERVE`, `HERO_SHIP_HEADER_HEIGHT`, `DOCK_HOVER_HEIGHT`, `DOCK_ENGINE_CLEARANCE`, and breakpoint overrides.
+Decisions: Header links remain real anchors and retain the existing scroll-flight behavior. The readout follows homepage section order; fallback uses a plain static frame.
+To tune: Cockpit SVG inset/chamfer coordinates, draw/fade delays, header top offset and width, progress rail width, and the 768px mobile breakpoint.
