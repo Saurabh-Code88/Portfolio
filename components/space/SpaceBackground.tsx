@@ -131,6 +131,7 @@ function EnabledSpaceBackground() {
   return (
     <div className={`space-background space-background--${mode} space-background--${BACKGROUND_SOURCE}`} aria-hidden="true">
       <div className="space-background__image" />
+      <div className="space-background__atmosphere" />
       <div className="space-background__stars space-background__stars--far" />
       <div className="space-background__stars space-background__stars--near" />
       <div className="space-background__vignette" />

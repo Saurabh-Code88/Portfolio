@@ -381,6 +381,7 @@ body.orbit-flight-active.orbit-flight-behind .space-background--active {
 }
 
 body.orbit-flight-active .space-background--active .space-background__image,
+body.orbit-flight-active .space-background--active .space-background__atmosphere,
 body.orbit-flight-active .space-background--active .space-background__vignette,
 body.orbit-flight-active .space-background--active .space-background__stars {
   opacity: 0;
@@ -389,6 +390,7 @@ body.orbit-flight-active .space-background--active .space-background__stars {
 body.orbit-flight-active .space-background--active canvas { pointer-events: none; }
 
 .space-background__image,
+.space-background__atmosphere,
 .space-background__vignette,
 .space-background__stars {
   position: absolute;
@@ -398,10 +400,25 @@ body.orbit-flight-active .space-background--active canvas { pointer-events: none
 
 .space-background__image {
   inset: -3%;
-  background-image: url("/backgrounds/space-bg.jpg");
-  background-position: center;
+  background-image: url("/backgrounds/planetary-sunrise-desktop.webp");
+  background-position: center 58%;
   background-size: cover;
   opacity: 0.78;
+  transform-origin: center;
+}
+
+.space-background__atmosphere {
+  z-index: 1;
+  background: linear-gradient(180deg, rgb(5 7 10 / 8%) 0%, transparent 40%, rgb(5 7 10 / 18%) 100%);
+  opacity: 0.7;
+}
+
+.space-background__atmosphere::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 48% 16% at 67% 65%, rgb(232 160 69 / 14%), transparent 78%);
+  content: "";
+  opacity: 0.52;
 }
 
 .space-background__vignette {
@@ -429,7 +446,10 @@ body.orbit-flight-active .space-background--active canvas { pointer-events: none
 }
 
 .space-background--image .space-background__image { display: block; }
+.space-background--image .space-background__stars--far { opacity: 0.24; }
+.space-background--image .space-background__stars--near { opacity: 0.13; }
 .space-background--procedural .space-background__image { display: none; }
+.space-background--procedural .space-background__atmosphere { display: none; }
 
 .space-background--procedural::before {
   position: absolute;
@@ -440,9 +460,16 @@ body.orbit-flight-active .space-background--active canvas { pointer-events: none
 
 .space-background--active .space-background__stars { display: none; }
 
-.space-background--active .space-background__image {
-  transform: translate3d(var(--space-pointer-x, 0px), var(--space-pointer-y, 0px), 0) scale(1.04);
-  transition: transform 700ms ease-out;
+.space-background--active.space-background--image .space-background__image {
+  animation: planetary-sunrise-drift 45s ease-in-out infinite alternate;
+}
+
+.space-background--active.space-background--image .space-background__atmosphere::before {
+  animation: planetary-atmosphere-breathe 34s ease-in-out infinite alternate;
+}
+
+.space-background--fallback.space-background--image .space-background__image {
+  transform: scale(1.05);
 }
 
 .space-background canvas {
@@ -473,10 +500,29 @@ html.model-grab-active * {
   position: absolute;
   z-index: 1;
   inset: 0;
-  background: linear-gradient(90deg, rgb(5 7 10 / 35%) 0%, rgb(5 7 10 / 24%) 25%, transparent 52%);
+  background:
+    linear-gradient(90deg, rgb(5 7 10 / 68%) 0%, rgb(5 7 10 / 52%) 30%, rgb(5 7 10 / 16%) 56%, transparent 72%),
+    radial-gradient(ellipse 34% 62% at 16% 50%, rgb(5 7 10 / 28%), transparent 100%),
+    radial-gradient(ellipse 28% 52% at 87% 51%, rgb(5 7 10 / 20%), transparent 100%);
   content: "";
   pointer-events: none;
   border-radius: inherit;
+}
+
+.space-background--fallback.space-background--image ~ .hero-page .hero-panel {
+  background: transparent;
+  box-shadow: none;
+}
+
+.space-background--fallback.space-background--image ~ .hero-page .hero-panel::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(5 7 10 / 70%) 0%, rgb(5 7 10 / 54%) 34%, rgb(5 7 10 / 12%) 68%, transparent 82%),
+    radial-gradient(ellipse 34% 64% at 16% 50%, rgb(5 7 10 / 28%), transparent 100%);
+  content: "";
+  pointer-events: none;
 }
 
 /* Hide the dot-grid overlay when the 3D canvas is active so the ship shows through. */
@@ -763,6 +809,16 @@ html.model-grab-active * {
 
 @keyframes star-drift-near {
   to { transform: translate3d(2%, -3%, 0); }
+}
+
+@keyframes planetary-sunrise-drift {
+  from { transform: translate3d(calc(var(--space-pointer-x, 0px) - 1.5%), var(--space-pointer-y, 0px), 0) scale(1.05); }
+  to { transform: translate3d(calc(var(--space-pointer-x, 0px) + 1.5%), var(--space-pointer-y, 0px), 0) scale(1.05); }
+}
+
+@keyframes planetary-atmosphere-breathe {
+  from { opacity: 0.38; }
+  to { opacity: 0.62; }
 }
 
 .hero-panel__content {
@@ -1784,6 +1840,15 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
     transition-duration: 0.01ms !important;
   }
 
+  .space-background--active.space-background--image .space-background__image,
+  .space-background--active.space-background--image .space-background__atmosphere::before {
+    animation: none;
+  }
+
+  .space-background--active.space-background--image .space-background__image {
+    transform: scale(1.05);
+  }
+
   .hero-starfield__layer { animation: none; }
   .cockpit-frame__outline,
   .cockpit-frame__ornaments { animation: none; stroke-dashoffset: 0; }
@@ -1813,6 +1878,16 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 }
 
 @media (max-width: 767px) {
+  .space-background--image .space-background__image {
+    background-image: url("/backgrounds/planetary-sunrise-mobile.webp");
+    background-position: center 60%;
+    transform: scale(1.05);
+    animation: none;
+  }
+  .space-background--active.space-background--image .space-background__image { animation: none; }
+  .space-background--image .space-background__stars--far { opacity: 0.16; }
+  .space-background--image .space-background__stars--near { opacity: 0.09; }
+  .space-background__atmosphere::before { animation: none !important; }
   .project-list { grid-template-columns: minmax(0, 1fr); }
   .site-header {
     width: calc(100% - 32px);
