@@ -6,7 +6,6 @@ export type StationTransform = {
   dockPoint: readonly [number, number, number];
   widthFraction: number;
 };
-
 // Position X/Y are fractions of the camera frustum; Z is a world-space offset.
 export const STATION_SCALE = 1;
 export const STATION_DIAMETER = 4.6;
@@ -37,4 +36,3 @@ export const STATION_BREAKPOINT_OVERRIDES: Record<StationBreakpointName, Station
   },
 };
 
-export const STATION_DOCK_LIGHT_OFFSET: readonly [number, number, number] = [0, 0.28, 0];

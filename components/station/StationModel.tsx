@@ -3,31 +3,11 @@
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, Box3, CanvasTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D, PointLight, SRGBColorSpace, Texture, Vector3 } from "three";
+import { Box3, Group, Material, Mesh, Object3D, Texture, Vector3 } from "three";
 import {
-  DOCK_POINT,
   STATION_DIAMETER,
-  STATION_DOCK_LIGHT_OFFSET,
   STATION_SCALE,
 } from "@/lib/station.config";
-
-function makeGlowTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const context = canvas.getContext("2d");
-  if (context) {
-    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, "rgba(214,241,255,1)");
-    gradient.addColorStop(0.18, "rgba(108,184,255,.75)");
-    gradient.addColorStop(1, "rgba(108,184,255,0)");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 128, 128);
-  }
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  return texture;
-}
 
 function cloneTexturedScene(source: Group) {
   const clone = source.clone(true);
@@ -70,15 +50,11 @@ export function StationModel({
   const { scene } = useGLTF("/models/station.glb", true, true);
   const model = useMemo(() => cloneTexturedScene(scene), [scene]);
   const group = useRef<Group>(null);
-  const dockLight = useRef<PointLight>(null);
-  const dockSprite = useRef<Group>(null);
-  const dockBeamMaterial = useRef<MeshBasicMaterial>(null);
   const frameWindow = useRef({ elapsed: 0, count: 0, slowWindows: 0, hidden: false });
   const monitorStartedAt = useRef(0);
   const previousFrame = useRef<{ position: Vector3; scale: Vector3; visible: boolean; opacity: number[] } | null>(null);
   const anomalyLogged = useRef(false);
   const normalizedModel = useRef<Group>(null);
-  const glow = useMemo(makeGlowTexture, []);
   const bounds = useMemo(() => new Box3().setFromObject(model), [model]);
   const center = useMemo(() => bounds.getCenter(new Vector3()), [bounds]);
   const size = useMemo(() => bounds.getSize(new Vector3()), [bounds]);
@@ -104,10 +80,7 @@ export function StationModel({
     if (preview) onBounds?.([size.x, size.y, size.z]);
   }, [onBounds, preview, size]);
 
-  useEffect(() => () => {
-    glow.dispose();
-    disposeScene(model);
-  }, [glow, model]);
+  useEffect(() => () => disposeScene(model), [model]);
 
   useEffect(() => {
     normalizedModel.current?.updateWorldMatrix(true, true);
@@ -176,10 +149,6 @@ export function StationModel({
         previousFrame.current = { position, scale: worldScale, visible, opacity };
       }
     }
-    const pulse = 0.5 + Math.sin(state.clock.elapsedTime * 2.2) * 0.5;
-    if (dockLight.current) dockLight.current.intensity = 0.65 + pulse * 0.7;
-    if (dockSprite.current) dockSprite.current.scale.setScalar(0.86 + pulse * 0.22);
-    if (dockBeamMaterial.current) dockBeamMaterial.current.opacity = 0.12 + pulse * 0.18;
   });
 
   return (
@@ -187,16 +156,6 @@ export function StationModel({
       <group ref={normalizedModel} scale={normalizeScale}>
         <primitive object={model} position={[-center.x, -center.y, -center.z]} dispose={null} />
       </group>
-      <group position={STATION_DOCK_LIGHT_OFFSET as [number, number, number]} ref={dockSprite}>
-        <sprite scale={[0.22, 0.22, 1]}>
-          <spriteMaterial map={glow} color="#d7efff" transparent opacity={0.9} blending={AdditiveBlending} depthWrite={false} />
-        </sprite>
-        {!preview && <pointLight ref={dockLight} color="#6cb8ff" intensity={1} distance={1.2} decay={2} />}
-      </group>
-      {!preview && <mesh position={[DOCK_POINT[0], DOCK_POINT[1] + 0.3, DOCK_POINT[2]]} frustumCulled={false}>
-        <cylinderGeometry args={[0.025, 0.06, 0.6, 12, 1, true]} />
-        <meshBasicMaterial ref={dockBeamMaterial} color="#6cb8ff" transparent opacity={0.22} blending={AdditiveBlending} depthWrite={false} />
-      </mesh>}
     </group>
   );
 }

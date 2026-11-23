@@ -176,7 +176,6 @@ function FlightShip({
   const dockOffset = useMemo(() => new Vector3(), []);
   const stationEuler = useMemo(() => new Euler(), []);
   const freePosition = useMemo(() => new Vector3(), []);
-  const dockingPulse = useRef<Group>(null);
 
   // ── Hero dwell state: when scroll is near top, park in the hero's right half ──
   const heroQuat = useMemo(() => new Quaternion(), []);
@@ -522,7 +521,6 @@ function FlightShip({
       orientation.copy(dockQuat).slerp(heroQuat, heroBlend).multiply(pointerRotation).multiply(rollRotation);
       group.current.quaternion.slerp(orientation, 1 - Math.exp(-delta * 5));
       enginePower.current = MathUtils.damp(enginePower.current, 1 + flare, 5, delta);
-      if (dockingPulse.current) dockingPulse.current.scale.setScalar(0.85 + (0.5 + Math.sin(state.clock.elapsedTime * 2.2) * 0.5) * 0.2);
       warp.current = MathUtils.damp(warp.current, 0, 5, delta);
 
       if (trail.current) {
@@ -606,13 +604,6 @@ function FlightShip({
           <Suspense fallback={null}>
             <ShipModel labels={false} onLoad={modelLoaded} enginePower={enginePower} />
           </Suspense>
-          <group ref={dockingPulse} position={[0, 0, -0.62]}>
-            <pointLight color="#6cb8ff" intensity={0.5} distance={1.1} decay={2} />
-            <mesh>
-              <sphereGeometry args={[0.035, 12, 10]} />
-              <meshBasicMaterial color="#d9f2ff" />
-            </mesh>
-          </group>
           <group ref={trail} position={[0, 0, -0.5]} visible={false}>
             <Sparkles count={24} scale={[0.35, 0.35, 0.9]} size={2} speed={0.55} color="#6cb8ff" opacity={0.82} />
           </group>

@@ -1,7 +1,7 @@
 # Progress
 Branch: feature/ship-polish
-Done: Removed red antenna/rim navigation lighting and blue pod glow sprites/offsets; preserved blue docking light, beam, ship engine glow, and shared bloom.
+Done: Removed blue `dockSprite`, station dock point light, tapered dock beam, and ship `dockingPulse` sphere/point light; preserved station model and orange ship engine glow.
 Next: Toolkit tool labels.
 Then: Small content and metadata fixes.
-Decisions: Pod glows came from two additive sprites and config offsets; station model materials were left unchanged. Placement/docking are unchanged; preview had no pod-glow controls.
+Decisions: Removed code-rendered blue lights and their `STATION_DOCK_LIGHT_OFFSET`; no station emissive-material edits were needed. Station and ship placement remain unchanged.
 To tune: `STATION_DIAMETER`, `STATION_HERO_CAMERA_FOV`, station breakpoint transforms, station visibility fallback threshold.
