@@ -16,6 +16,21 @@ function getJourneyNumbers(journey: HTMLElement) {
   };
 }
 
+/** Cache outside the frame loop; a tablet horizontal layout is deliberately excluded. */
+export function getDesktopJourneyFlightGeometry() {
+  const journey = getJourney();
+  if (!journey || window.innerWidth < 1024 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+  const { start, verticalDistance } = getJourneyNumbers(journey);
+  const sections = SECTION_IDS.map((id) => document.getElementById(id));
+  if (verticalDistance <= 0 || sections.some((section) => !section)) return null;
+  const stops = sections.map((section) => {
+    const target = getHorizontalJourneyScrollTarget(section!);
+    return Math.max(0, Math.min(1, ((target ?? start) - start) / verticalDistance));
+  });
+  stops[0] = 0;
+  return { start, verticalDistance, stops };
+}
+
 /** Read the same measured scroll geometry as the track, without relying on RAF order. */
 export function getHorizontalJourneyReadingPosition(sections: readonly HTMLElement[]) {
   const journey = getJourney();

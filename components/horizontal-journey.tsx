@@ -41,7 +41,9 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
       const contentFits = panels.every((panel) => panel.scrollHeight <= height - 24)
         && scrollableContent.every((content) => content.scrollHeight <= height - 24);
       const navFits = !nav || nav.scrollWidth <= nav.clientWidth + 1;
-      horizontal = !media.matches && (width >= 1024 || (width >= 768 && contentFits && navFits));
+      // The desktop breakpoint uses viewport width; a scrollbar must not turn a
+      // 1024px desktop into the content-fit tablet branch and oscillate layouts.
+      horizontal = !media.matches && (window.innerWidth >= 1024 || (width >= 768 && contentFits && navFits));
       if (horizontal) region.style.setProperty("--journey-panel-width", `${width}px`);
       else region.style.removeProperty("--journey-panel-width");
       region.classList.toggle("horizontal-journey--active", horizontal);

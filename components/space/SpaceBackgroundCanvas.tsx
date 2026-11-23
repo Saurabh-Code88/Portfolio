@@ -20,7 +20,8 @@ import {
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
-import { getHorizontalJourneyProjectedRect } from "@/lib/horizontalJourney";
+import { getDesktopJourneyFlightGeometry, getHorizontalJourneyProjectedRect } from "@/lib/horizontalJourney";
+import { sampleManualFlight, type ManualFlightSample } from "@/lib/manualFlight";
 import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
@@ -43,6 +44,10 @@ import {
   ORBIT_TILT,
   ORBIT_TURNS,
   PARK_DEPTH,
+  MANUAL_FLIGHT_ARC_WIDTH,
+  MANUAL_FLIGHT_ARC_HEIGHT,
+  MANUAL_FLIGHT_BANK,
+  MANUAL_FLIGHT_HANDOFF_SPAN,
   PARK_HOVER_AMPLITUDE,
   PARK_SCALE,
   PARK_X,
@@ -235,6 +240,10 @@ function FlightShip({
   const scrollFrame = useRef<number | null>(null);
   const flightScreenVelocity = useMemo(() => new Vector2(), []);
   const scrollVelocity = useRef(0);
+  const desktopJourney = useRef<ReturnType<typeof getDesktopJourneyFlightGeometry>>(null);
+  const manualSample = useRef<ManualFlightSample>({ x: PARK_X, y: PARK_Y, scale: PARK_SCALE, bank: 0, pitch: 0, departure: 0, segment: 0, local: 0, phase: "idle" });
+  const manualHandoff = useRef<{ progress: number; position: Vector3; quaternion: Quaternion; scale: number } | null>(null);
+  const manualNeedsHandoff = useRef(false);
   const returnToPark = useRef<{
     startedAt: number;
     duration: number;
@@ -420,15 +429,22 @@ function FlightShip({
   useEffect(() => {
     const updateStops = () => {
       stops.current = getSectionStops(document.documentElement.scrollHeight, window.innerHeight);
+      desktopJourney.current = getDesktopJourneyFlightGeometry();
     };
     const root = document.querySelector("main");
     updateStops();
     window.addEventListener("resize", updateStops, { passive: true });
     const observer = root && typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateStops) : null;
     if (root) observer?.observe(root);
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    media.addEventListener("change", updateStops);
+    const journeyObserver = new MutationObserver(updateStops);
+    if (root) journeyObserver.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-horizontal-journey", "data-scroll-start", "data-horizontal-distance", "data-vertical-distance"] });
     return () => {
       window.removeEventListener("resize", updateStops);
       observer?.disconnect();
+      journeyObserver.disconnect();
+      media.removeEventListener("change", updateStops);
     };
   }, []);
 
@@ -478,6 +494,7 @@ function FlightShip({
         lastScrollTop: window.scrollY,
         lastScrollAt: now,
       };
+      manualHandoff.current = null;
       document.body.classList.add("orbit-flight-active");
       document.body.classList.remove("orbit-flight-behind");
       const scrollTick = (now: number) => {
@@ -532,6 +549,20 @@ function FlightShip({
       if (FLIGHT_SECTION_IDS.includes(sectionId as (typeof FLIGHT_SECTION_IDS)[number])) requestFlight(sectionId);
     };
     const cancelFlight = () => {
+      if (navFlight.current && group.current && desktopJourney.current) {
+        const geometry = desktopJourney.current;
+        manualHandoff.current = {
+          progress: (window.scrollY - geometry.start) / geometry.verticalDistance,
+          position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x,
+        };
+        returnToPark.current = null;
+        navFlight.current = null;
+        if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+        scrollFrame.current = null;
+        scrollVelocity.current = 0;
+        clearFlightLayer();
+        return;
+      }
       if (navFlight.current && group.current) {
         const perspectiveCamera = camera instanceof PerspectiveCamera ? camera : null;
         const position = group.current.position.clone();
@@ -723,6 +754,56 @@ function FlightShip({
       stationGroup.current.rotation.copy(stationEuler);
       stationGroup.current.scale.setScalar(stationWorldScale);
     }
+
+    const journey = desktopJourney.current;
+    const manualCamera = state.camera;
+    if (activeFlight && journey) manualNeedsHandoff.current = true;
+    if (journey && !activeFlight && manualCamera instanceof PerspectiveCamera) {
+      const manualProgress = MathUtils.clamp((window.scrollY - journey.start) / journey.verticalDistance, 0, 1);
+      const pose = sampleManualFlight(manualProgress, journey.stops, PARK_X, PARK_Y, PARK_SCALE,
+        MANUAL_FLIGHT_ARC_WIDTH, MANUAL_FLIGHT_ARC_HEIGHT, MANUAL_FLIGHT_BANK, manualSample.current);
+      if (manualNeedsHandoff.current && !manualHandoff.current) {
+        manualHandoff.current = { progress: manualProgress, position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x };
+      }
+      manualNeedsHandoff.current = false;
+      returnToPark.current = null;
+      document.body.classList.remove("orbit-flight-active", "orbit-flight-behind");
+      // The camera and nested drag groups remain owned by their existing controllers.
+      // No damping or elapsed-time timeline: a stopped scroll holds this exact pose.
+      screenToWorld(manualCamera, pose.x * state.size.width, pose.y * state.size.height, PARK_DEPTH,
+        state.size.width, state.size.height, shipTarget);
+      dockedPosition.set(stationPosition.x + dockOffset.x,
+        stationPosition.y + dockOffset.y + dockedHoverOffset, stationPosition.z + dockOffset.z);
+      shipTarget.lerpVectors(dockedPosition, shipTarget, pose.departure);
+      pointerEuler.set(pose.pitch, 0, pose.bank);
+      bankRotation.setFromEuler(pointerEuler);
+      orientation.copy(dockQuat).multiply(bankRotation);
+      let manualScale = MathUtils.lerp(dockScale, pose.scale, pose.departure);
+      const handoff = manualHandoff.current;
+      if (handoff) {
+        const blend = smoothstep(MathUtils.clamp(Math.abs(manualProgress - handoff.progress) / MANUAL_FLIGHT_HANDOFF_SPAN, 0, 1));
+        shipTarget.lerpVectors(handoff.position, shipTarget, blend);
+        orientation.copy(handoff.quaternion).slerp(flightOrientation.copy(dockQuat).multiply(bankRotation), blend);
+        manualScale = MathUtils.lerp(handoff.scale, manualScale, blend);
+        if (blend >= 1) manualHandoff.current = null;
+      }
+      group.current.position.copy(shipTarget);
+      group.current.quaternion.copy(orientation);
+      group.current.scale.setScalar(manualScale);
+      displayedProgress.current = progress.get();
+      flightScreenVelocity.set(0, 0);
+      warp.current = 0;
+      enginePower.current = 0.7;
+      if (trail.current) trail.current.visible = false;
+      flightProgressStore.publish({
+        sectionId: getFlightSectionId(displayedProgress.current, stops.current), targetSectionId: null,
+        // Store phases orchestrate navigation reveals. Manual travel must release
+        // a cancelled navigation target immediately; its own phase lives in pose.
+        progress: displayedProgress.current, isFlying: false, isParked: pose.phase === "idle", phase: "idle",
+      });
+      return;
+    }
+    if (!journey) { manualHandoff.current = null; manualNeedsHandoff.current = false; }
 
     flightProgressStore.publish({
       sectionId: getFlightSectionId(p, stops.current),

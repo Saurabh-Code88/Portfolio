@@ -27,6 +27,11 @@ export const PARK_Y = 0.5;
 export const PARK_SCALE = 0.58;
 export const PARK_DEPTH = 4;
 export const PARK_HOVER_AMPLITUDE = 0.025;
+// Manual desktop journey: restrained screen-space arcs within the right margin.
+export const MANUAL_FLIGHT_ARC_WIDTH = 0.028;
+export const MANUAL_FLIGHT_ARC_HEIGHT = 0.18;
+export const MANUAL_FLIGHT_BANK = 0.18;
+export const MANUAL_FLIGHT_HANDOFF_SPAN = 0.045;
 export const ORBIT_TURNS = 1;
 export const ORBIT_DURATION = 1300;
 export const TRAVEL_DURATION = 900;
