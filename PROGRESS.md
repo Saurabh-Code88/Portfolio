@@ -1,6 +1,6 @@
-﻿# Progress
+# Progress
 Branch: feature/cinematic-space-redesign
-Done: Audited cinematic architecture and documented living-background implementation plan in docs/CINEMATIC_REDESIGN_PLAN.md.
-Next: Add section-mapped planetary/nebula layers in the existing DOM/CSS background stack.
-Decisions: Preserve the existing R3F scene, flight system, and fallbacks; drive discrete background transitions from flight section/phase state.
-To tune: Background-to-section mapping, crossfade duration, asset dimensions, and preload window.
+Done: Added the planetary sunrise background with static responsive WebP derivatives and subtle desktop-only atmospheric motion.
+Next: Add section-mapped planetary and nebula transitions in the existing DOM/CSS stack.
+Decisions: Preserve the JPG source, procedural CSS alternative, existing star layers, and single R3F scene; fallbacks remain static.
+To tune: Background position, 45s drift range, 34s atmosphere cycle, and gradient opacity.
