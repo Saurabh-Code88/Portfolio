@@ -22,6 +22,7 @@ import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
 import { getDesktopJourneyFlightGeometry, getHorizontalJourneyProjectedRect } from "@/lib/horizontalJourney";
 import { sampleManualFlight, type ManualFlightSample } from "@/lib/manualFlight";
+import { createScrollOrbitSample, sampleScrollOrbit, type ScrollOrbitBounds } from "@/lib/scrollOrbit";
 import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
@@ -65,6 +66,8 @@ import {
   STATION_SCALE,
   STATION_POSITION,
   STATION_YAW_DRIFT,
+  STATION_JOURNEY_SPIN,
+  STATION_SIDE_WIDTH,
 } from "@/lib/station.config";
 import {
   MODEL_DRAG_SENSITIVITY,
@@ -241,6 +244,9 @@ function FlightShip({
   const flightScreenVelocity = useMemo(() => new Vector2(), []);
   const scrollVelocity = useRef(0);
   const desktopJourney = useRef<ReturnType<typeof getDesktopJourneyFlightGeometry>>(null);
+  const manualOrbitBounds = useRef<ScrollOrbitBounds[]>([]);
+  const scrollOrbit = useMemo(createScrollOrbitSample, []);
+  const stationSpin = useRef(0);
   const manualSample = useRef<ManualFlightSample>({ x: PARK_X, y: PARK_Y, scale: PARK_SCALE, bank: 0, pitch: 0, departure: 0, segment: 0, local: 0, phase: "idle" });
   const manualHandoff = useRef<{ progress: number; position: Vector3; quaternion: Quaternion; scale: number } | null>(null);
   const manualNeedsHandoff = useRef(false);
@@ -279,6 +285,10 @@ function FlightShip({
   const shipTarget = useMemo(() => new Vector3(), []);
   const dockedPosition = useMemo(() => new Vector3(), []);
   const stationPosition = useMemo(() => new Vector3(), []);
+  const heroDockPosition = useMemo(() => new Vector3(), []);
+  const sideDockPosition = useMemo(() => new Vector3(), []);
+  const screenRotation = useMemo(() => new Quaternion(), []);
+  const screenAxis = useMemo(() => new Vector3(0, 0, 1), []);
   const dockLocal = useMemo(() => new Vector3(), []);
   const dockOffset = useMemo(() => new Vector3(), []);
   const stationEuler = useMemo(() => new Euler(), []);
@@ -430,6 +440,14 @@ function FlightShip({
     const updateStops = () => {
       stops.current = getSectionStops(document.documentElement.scrollHeight, window.innerHeight);
       desktopJourney.current = getDesktopJourneyFlightGeometry();
+      const journey = desktopJourney.current;
+      const width = gl.domElement.clientWidth || window.innerWidth;
+      const height = gl.domElement.clientHeight || window.innerHeight;
+      manualOrbitBounds.current = journey ? FLIGHT_SECTION_IDS.slice(1).map((id, index) => {
+        const bounds = getOrbitBounds(id, journey.start + journey.stops[index + 1] * journey.verticalDistance, width, height);
+        return { left: bounds.left / width, right: bounds.right / width, centerX: bounds.centerX / width,
+          centerY: bounds.centerY / height, radiusX: bounds.radiusX / width, radiusY: bounds.radiusY / height };
+      }) : [];
     };
     const root = document.querySelector("main");
     updateStops();
@@ -446,7 +464,7 @@ function FlightShip({
       journeyObserver.disconnect();
       media.removeEventListener("change", updateStops);
     };
-  }, []);
+  }, [gl]);
 
   useEffect(() => {
     const clearFlightLayer = () => {
@@ -712,7 +730,7 @@ function FlightShip({
       frustumWidth * stationPreset.widthFraction * STATION_SCALE * stationPreset.scale,
       frustumWidth * 0.47,
     );
-    const stationWorldScale = desiredWidth / (STATION_DIAMETER * STATION_SCALE);
+    let stationWorldScale = desiredWidth / (STATION_DIAMETER * STATION_SCALE);
     const horizontalRadius = desiredWidth / 2;
     const margin = frustumWidth * 0.005;
     const stationX = MathUtils.clamp(
@@ -728,9 +746,11 @@ function FlightShip({
       dockScale * 0.78 + DOCK_ENGINE_CLEARANCE,
     );
     dockLocal.set(...stationPreset.dockPoint);
+    const journey = desktopJourney.current;
+    if (journey) stationSpin.current += Math.min(delta, .05) * STATION_JOURNEY_SPIN;
     stationEuler.set(
       stationPreset.rotation[0],
-      stationPreset.rotation[1] + state.clock.elapsedTime * STATION_YAW_DRIFT,
+      stationPreset.rotation[1] + (journey ? stationSpin.current : state.clock.elapsedTime * STATION_YAW_DRIFT),
       stationPreset.rotation[2],
     );
     dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
@@ -748,6 +768,20 @@ function FlightShip({
       frustumHeight / 2 - stationHeight / 2 - margin,
     );
     stationPosition.set(stationX, stationY, stationPreset.position[2]);
+    heroDockPosition.copy(stationPosition).add(dockOffset);
+    heroDockPosition.y += dockedHoverOffset;
+    if (journey && state.camera instanceof PerspectiveCamera) {
+      const journeyProgress = MathUtils.clamp((window.scrollY - journey.start) / journey.verticalDistance, 0, 1);
+      const sideBlend = smoothstep(journeyProgress / Math.max(.001, journey.stops[1] * .65));
+      const sideWidth = 2 * PARK_DEPTH * Math.tan(state.camera.fov * Math.PI / 360) * state.camera.aspect * STATION_SIDE_WIDTH;
+      stationWorldScale = MathUtils.lerp(stationWorldScale, sideWidth / STATION_DIAMETER, sideBlend);
+      dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
+      screenToWorld(state.camera, PARK_X * state.size.width, PARK_Y * state.size.height, PARK_DEPTH,
+        state.size.width, state.size.height, sideDockPosition);
+      sideDockPosition.sub(dockOffset);
+      sideDockPosition.y -= Math.min(DOCK_HOVER_HEIGHT, PARK_SCALE * .78 + DOCK_ENGINE_CLEARANCE);
+      stationPosition.lerp(sideDockPosition, sideBlend);
+    }
     if (stationGroup.current) {
       stationGroup.current.visible = true;
       stationGroup.current.position.copy(stationPosition);
@@ -755,35 +789,45 @@ function FlightShip({
       stationGroup.current.scale.setScalar(stationWorldScale);
     }
 
-    const journey = desktopJourney.current;
     const manualCamera = state.camera;
     if (activeFlight && journey) manualNeedsHandoff.current = true;
     if (journey && !activeFlight && manualCamera instanceof PerspectiveCamera) {
       const manualProgress = MathUtils.clamp((window.scrollY - journey.start) / journey.verticalDistance, 0, 1);
       const pose = sampleManualFlight(manualProgress, journey.stops, PARK_X, PARK_Y, PARK_SCALE,
         MANUAL_FLIGHT_ARC_WIDTH, MANUAL_FLIGHT_ARC_HEIGHT, MANUAL_FLIGHT_BANK, manualSample.current);
+      const bounds = manualOrbitBounds.current[pose.segment];
+      if (!bounds) return;
+      const stopTolerance = 1 / Math.max(1, journey.verticalDistance * (journey.stops[pose.segment + 1] - journey.stops[pose.segment]));
+      const orbitLocal = pose.local < stopTolerance ? 0 : pose.local > 1 - stopTolerance ? 1 : pose.local;
+      flightWorld.copy(heroDockPosition).project(manualCamera);
+      const orbit = sampleScrollOrbit(orbitLocal, bounds,
+        pose.segment === 0 ? (flightWorld.x + 1) / 2 : PARK_X,
+        pose.segment === 0 ? (1 - flightWorld.y) / 2 : PARK_Y,
+        pose.segment === 0 ? dockScale : PARK_SCALE, PARK_X, PARK_Y, scrollOrbit);
       if (manualNeedsHandoff.current && !manualHandoff.current) {
         manualHandoff.current = { progress: manualProgress, position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x };
       }
       manualNeedsHandoff.current = false;
       returnToPark.current = null;
-      document.body.classList.remove("orbit-flight-active", "orbit-flight-behind");
+      document.body.classList.toggle("orbit-flight-active", orbit.phase !== "idle");
+      document.body.classList.toggle("orbit-flight-behind", orbit.phase !== "idle"
+        && (orbit.position.x < bounds.left || orbit.position.x > bounds.right));
       // The camera and nested drag groups remain owned by their existing controllers.
       // No damping or elapsed-time timeline: a stopped scroll holds this exact pose.
-      screenToWorld(manualCamera, pose.x * state.size.width, pose.y * state.size.height, PARK_DEPTH,
+      screenToWorld(manualCamera, orbit.position.x * state.size.width, orbit.position.y * state.size.height, PARK_DEPTH,
         state.size.width, state.size.height, shipTarget);
-      dockedPosition.set(stationPosition.x + dockOffset.x,
-        stationPosition.y + dockOffset.y + dockedHoverOffset, stationPosition.z + dockOffset.z);
-      shipTarget.lerpVectors(dockedPosition, shipTarget, pose.departure);
-      pointerEuler.set(pose.pitch, 0, pose.bank);
-      bankRotation.setFromEuler(pointerEuler);
-      orientation.copy(dockQuat).multiply(bankRotation);
-      let manualScale = MathUtils.lerp(dockScale, pose.scale, pose.departure);
+      // Start at the actual hero depth, then move into the shared orbit plane.
+      if (pose.segment === 0) shipTarget.lerpVectors(heroDockPosition, shipTarget, smoothstep(pose.local / .2));
+      screenRotation.setFromAxisAngle(screenAxis, -Math.atan2(orbit.tangent.x * state.size.width, -orbit.tangent.y * state.size.height));
+      bankRotation.setFromAxisAngle(localForward, orbit.bank);
+      flightOrientation.copy(dockQuat).premultiply(screenRotation).multiply(bankRotation);
+      orientation.copy(dockQuat).slerp(flightOrientation, orbit.headingWeight);
+      let manualScale = orbit.scale;
       const handoff = manualHandoff.current;
       if (handoff) {
         const blend = smoothstep(MathUtils.clamp(Math.abs(manualProgress - handoff.progress) / MANUAL_FLIGHT_HANDOFF_SPAN, 0, 1));
         shipTarget.lerpVectors(handoff.position, shipTarget, blend);
-        orientation.copy(handoff.quaternion).slerp(flightOrientation.copy(dockQuat).multiply(bankRotation), blend);
+        orientation.slerpQuaternions(handoff.quaternion, flightOrientation.copy(orientation), blend);
         manualScale = MathUtils.lerp(handoff.scale, manualScale, blend);
         if (blend >= 1) manualHandoff.current = null;
       }
@@ -799,7 +843,7 @@ function FlightShip({
         sectionId: getFlightSectionId(displayedProgress.current, stops.current), targetSectionId: null,
         // Store phases orchestrate navigation reveals. Manual travel must release
         // a cancelled navigation target immediately; its own phase lives in pose.
-        progress: displayedProgress.current, isFlying: false, isParked: pose.phase === "idle", phase: "idle",
+        progress: displayedProgress.current, isFlying: false, isParked: orbit.phase === "idle", phase: "idle",
       });
       return;
     }

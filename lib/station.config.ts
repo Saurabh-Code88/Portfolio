@@ -14,6 +14,9 @@ export const STATION_POSITION: readonly [number, number, number] = [0, -0.1, -0.
 export const STATION_ROTATION: readonly [number, number, number] = [0, 0, 0];
 export const DOCK_POINT: readonly [number, number, number] = [0, 0.76, 0];
 export const STATION_YAW_DRIFT = 0.00012;
+// Desktop journey only: one axial revolution in roughly two minutes.
+export const STATION_JOURNEY_SPIN = 0.05;
+export const STATION_SIDE_WIDTH = 0.14;
 export const STATION_HEIGHT_RATIO = 0.35 / 1.19;
 export const DOCK_HOVER_HEIGHT = 1.2;
 export const DOCK_ENGINE_CLEARANCE = 0.12;
