@@ -211,6 +211,10 @@ body::before {
   background: var(--surface-2);
 }
 
+.cockpit-frame__telemetry,
+.site-nav__journey-index,
+.cockpit-frame__total { display: none; }
+
 .cockpit-frame {
   position: fixed;
   z-index: 6;
@@ -2136,6 +2140,113 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 
   .contact-section {
     padding: 24px 18px;
+  }
+}
+
+/* Cockpit refinement uses the existing mode gate; static and reduced-motion
+   presentations retain their original surfaces and spacing. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  body.space-canvas-active:has([data-horizontal-journey="active"]) {
+    .cockpit-frame { inset: 18px; }
+    .cockpit-frame__outline { stroke: rgb(232 160 69 / 22%); }
+    .cockpit-frame__ornaments { stroke: rgb(232 160 69 / 38%); }
+    .cockpit-frame__corner { opacity: .45; }
+    .cockpit-frame__section {
+      bottom: 10px;
+      left: 18px;
+      background: transparent;
+      color: #d4c3ab;
+      font-size: .62rem;
+      letter-spacing: .06em;
+      text-transform: lowercase;
+    }
+    .cockpit-frame__total { display: inline; }
+    .cockpit-frame__telemetry {
+      position: absolute;
+      display: block;
+      right: 24px;
+      bottom: 10px;
+      color: #d4c3ab;
+      font-family: var(--font-fira-code), monospace;
+      font-size: .62rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .025em;
+    }
+    .cockpit-frame__progress-track { bottom: 32px; height: 1px; opacity: .65; }
+    .cockpit-frame__marker { width: 3px; height: 3px; border: 0; background: var(--amber); }
+    .site-header {
+      background: rgb(5 7 10 / 55%);
+      backdrop-filter: none;
+      border-color: rgb(232 160 69 / 16%);
+      gap: 16px;
+    }
+    .site-brand { font-size: .82rem; gap: 9px; }
+    .site-brand__seal { border-color: rgb(232 160 69 / 35%); border-radius: 3px; width: 30px; }
+    .site-nav { gap: clamp(8px, 1.2vw, 20px); }
+    .site-nav__link {
+      padding-inline: 5px;
+      font-size: .74rem;
+      letter-spacing: .025em;
+      text-transform: none;
+      transition: color 180ms ease, background-color 180ms ease;
+    }
+    .site-nav__link[aria-current="location"] { background: rgb(232 160 69 / 5%); }
+    .site-nav__index { color: #bb9d77; font-variant-numeric: tabular-nums; }
+    .site-nav__index { display: none; }
+    .site-nav__journey-index { display: inline; color: #bb9d77; font-family: var(--font-fira-code), monospace; font-size: .72em; font-variant-numeric: tabular-nums; }
+    .site-nav__link::after { bottom: 4px; background: rgb(232 160 69 / 70%); }
+    .site-header__actions { gap: 12px; }
+    .site-header__contact { border-color: rgb(232 160 69 / 32%); border-radius: 4px; font-size: .78rem; }
+    .site-header__skip { font-size: .7rem; }
+    .hero-frame {
+      padding: 25px clamp(12px, 1.5vw, 24px);
+      clip-path: none;
+      background: rgb(5 7 10 / 46%);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border-left: 1px solid rgb(232 160 69 / 24%);
+    }
+    .hero-frame--proof { border-left: 0; border-right: 1px solid rgb(232 160 69 / 24%); }
+    .hud-frame__art { opacity: .18; }
+    .hud-frame__stepbar { display: none; }
+    .hero h1 { color: var(--ink); font-size: clamp(1.75rem, 2.65vw, 3rem); line-height: 1.18; }
+    .hero-kicker { font-size: .7rem; line-height: 1.7; }
+    .hero-subline { font-size: clamp(.85rem, 1vw, 1rem); line-height: 1.65; }
+    .hero-proof-points { gap: 18px; }
+    .hero-proof-points strong { color: var(--ink); line-height: 1.5; }
+    .hero-frame__eyebrow { font-size: .68rem; margin-bottom: 22px; }
+    .hero-action { border-radius: 4px; }
+    .content-section {
+      background: rgb(5 7 10 / 24%);
+      border-color: rgb(232 160 69 / 12%);
+      border-radius: 8px;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    .section-heading h2 { color: var(--ink); letter-spacing: -.025em; }
+    .section-kicker { font-size: .7rem; letter-spacing: .04em; }
+    .toolkit-group, .project-card, .research-panel, .experience-entry, .compact-entry {
+      background: rgb(5 7 10 / 62%);
+      border-color: rgb(232 160 69 / 18%);
+      border-radius: 6px;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      box-shadow: none;
+    }
+    .toolkit-group:hover, .project-card:hover, .research-panel:hover, .experience-entry:hover, .compact-entry:hover {
+      border-color: rgb(232 160 69 / 40%);
+      box-shadow: none;
+    }
+    .project-list { gap: 18px; }
+    .project-card__summary { padding: 20px; gap: 12px; }
+    .project-card__summary h3 { color: var(--ink); font-size: 1.22rem; line-height: 1.4; }
+    .project-card__summary > p { -webkit-line-clamp: 2; line-height: 1.65; color: #dfd2bf; }
+    .project-card__tags li { background: transparent; border-color: rgb(232 160 69 / 22%); color: #d4c3ab; border-radius: 3px; }
+    .project-card__body { padding: 20px; gap: 18px; }
+    .project-card__details { border-color: rgb(232 160 69 / 14%); }
+    .project-actions a { border-radius: 4px; transition: border-color 180ms ease, background-color 180ms ease; }
+    .contact-section:hover { box-shadow: none; }
+    .contact-links a { background: rgb(5 7 10 / 62%); border-color: rgb(232 160 69 / 20%); border-radius: 4px; }
   }
 }
 

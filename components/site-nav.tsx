@@ -4,14 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef } from "react";
 import { useActiveSection } from "@/components/active-section-provider";
 import { profile } from "@/content/profile";
+import { cockpitSections } from "@/content/cockpit";
 
-const navigation = [
-  { id: "toolkit", label: "TOOLKIT", href: "/#toolkit" },
-  { id: "projects", label: "PROJECTS", href: "/#projects" },
-  { id: "research", label: "RESEARCH", href: "/#research" },
-  { id: "experience", label: "ABOUT", href: "/#experience" },
-  { id: "contact", label: "CONTACT", href: "/#contact" },
-] as const;
+const navigation = cockpitSections.slice(1).map((section) => ({ ...section, href: `/#${section.id}` }));
 
 export function SiteNav() {
   const activeId = useActiveSection();
@@ -47,6 +42,7 @@ export function SiteNav() {
             style={{ animationDelay: `${950 + index * 60}ms` }}
           >
             <span className="site-nav__index">{String(index + 1).padStart(2, "0")}</span>
+            <span className="site-nav__journey-index" aria-hidden="true">{String(index + 2).padStart(2, "0")}</span>
             <span>{item.label}</span>
           </Link>
         ))}
