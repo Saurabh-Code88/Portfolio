@@ -4,6 +4,7 @@ import { Html, useGLTF } from "@react-three/drei";
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import {
   AdditiveBlending,
+  Box3,
   CanvasTexture,
   Color,
   DoubleSide,
@@ -101,26 +102,25 @@ function EngineEffects({ position, power }: { position: readonly [number, number
 export function ShipModel({
   onClick,
   onLoad,
+  onBounds,
   labels = true,
   enginePower,
 }: {
   onClick?: () => void;
   onLoad?: () => void;
+  onBounds?: (bounds: { nose: number }) => void;
   labels?: boolean;
   enginePower?: MutableRefObject<number>;
 }) {
   const gltf = useGLTF("/models/ship.glb");
   const model = useMemo(() => cloneTexturedScene(gltf.scene), [gltf.scene]);
+  const modelBounds = useMemo(() => new Box3().setFromObject(model), [model]);
   const defaultEnginePower = useRef(1);
   const sharedEnginePower = enginePower ?? defaultEnginePower;
   const modelRotation = forwardSign < 0 ? Math.PI : 0;
   useEffect(() => onLoad?.(), [onLoad]);
-  useEffect(() => () => {
-    disposeTexturedScene(model);
-    // This portfolio renders one ship instance per route; clear Drei's cached source so its GPU assets can be released too.
-    useGLTF.clear("/models/ship.glb");
-    disposeTexturedScene(gltf.scene);
-  }, [gltf.scene, model]);
+  useEffect(() => onBounds?.({ nose: Math.max(0, modelBounds.max.z) }), [modelBounds, onBounds]);
+  useEffect(() => () => disposeTexturedScene(model), [model]);
   const nozzles = nozzleOffsets.map(([x, y, z]) => [x, y, z] as const);
 
   return (

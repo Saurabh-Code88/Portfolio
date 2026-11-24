@@ -1,0 +1,115 @@
+const SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
+
+export type JourneyRevealPosition = {
+  x: number;
+  width: number;
+  panels: readonly { id: string; offset: number }[];
+};
+let revealPosition: JourneyRevealPosition | null = null;
+const revealListeners = new Set<() => void>();
+/** Published only by the existing journey measurement/track update, never a new loop. */
+export const journeyRevealPosition = {
+  getSnapshot: () => revealPosition,
+  publish(position: JourneyRevealPosition | null) {
+    revealPosition = position;
+    revealListeners.forEach((listener) => listener());
+  },
+  subscribe(listener: () => void) {
+    revealListeners.add(listener);
+    return () => { revealListeners.delete(listener); };
+  },
+};
+
+function getJourney() {
+  return document.querySelector<HTMLElement>("[data-horizontal-journey='active']");
+}
+
+function getPanel(section: HTMLElement) {
+  return section.closest<HTMLElement>("[data-journey-panel]");
+}
+
+function getJourneyNumbers(journey: HTMLElement) {
+  return {
+    start: Number(journey.dataset.scrollStart || 0),
+    verticalDistance: Number(journey.dataset.verticalDistance || 0),
+    horizontalDistance: Number(journey.dataset.horizontalDistance || 0),
+  };
+}
+
+/** Cache outside the frame loop; a tablet horizontal layout is deliberately excluded. */
+export function getDesktopJourneyFlightGeometry() {
+  const journey = getJourney();
+  if (!journey || window.innerWidth < 1024 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+  const { start, verticalDistance } = getJourneyNumbers(journey);
+  const sections = SECTION_IDS.map((id) => document.getElementById(id));
+  if (verticalDistance <= 0 || sections.some((section) => !section)) return null;
+  const stops = sections.map((section) => {
+    const target = getHorizontalJourneyScrollTarget(section!);
+    return Math.max(0, Math.min(1, ((target ?? start) - start) / verticalDistance));
+  });
+  stops[0] = 0;
+  return { start, verticalDistance, stops, horizontalDistance: getJourneyNumbers(journey).horizontalDistance,
+    documentDistance: Math.max(1, document.documentElement.scrollHeight - window.innerHeight) };
+}
+
+/** Read the same measured scroll geometry as the track, without relying on RAF order. */
+export function getHorizontalJourneyReadingPosition(sections: readonly HTMLElement[]) {
+  const journey = getJourney();
+  if (!journey) return null;
+  const { start, verticalDistance, horizontalDistance } = getJourneyNumbers(journey);
+  const viewport = journey.querySelector<HTMLElement>(".horizontal-journey__viewport");
+  const panels = sections.map(getPanel);
+  if (!viewport || panels.some((panel) => !panel)) return null;
+  const progress = Math.max(0, Math.min(1, (window.scrollY - start) / Math.max(1, verticalDistance)));
+  return {
+    position: (revealPosition?.x ?? progress * horizontalDistance) + viewport.clientWidth / 2,
+    starts: panels.map((panel) => panel!.offsetLeft),
+  };
+}
+
+export function getHorizontalJourneyScrollTarget(section: HTMLElement) {
+  const journey = getJourney();
+  const panel = getPanel(section);
+  if (!journey || !panel) return null;
+  if (section.dataset.flightSection === "hero") return 0;
+  const { start, verticalDistance, horizontalDistance } = getJourneyNumbers(journey);
+  const panelOffset = panel.offsetLeft;
+  const fraction = horizontalDistance > 0 ? panelOffset / horizontalDistance : 0;
+  return start + Math.max(0, Math.min(1, fraction)) * verticalDistance;
+}
+
+export function getHorizontalJourneySectionStops(documentHeight: number, viewportHeight: number) {
+  const journey = getJourney();
+  if (!journey) return null;
+  const { start, verticalDistance, horizontalDistance } = getJourneyNumbers(journey);
+  if (!verticalDistance || !horizontalDistance) return null;
+  const maxScroll = Math.max(1, documentHeight - viewportHeight);
+  let previous = 0;
+  const stops = SECTION_IDS.map((id) => {
+    const section = id === "hero"
+      ? document.querySelector<HTMLElement>("[data-flight-section='hero']")
+      : document.getElementById(id);
+    const panel = section && getPanel(section);
+    if (!panel) return previous;
+    const fraction = Math.max(0, Math.min(1, panel.offsetLeft / horizontalDistance));
+    previous = Math.max(previous, Math.max(0, Math.min(1, (start + fraction * verticalDistance) / maxScroll)));
+    return previous;
+  });
+  stops[0] = 0;
+  stops[stops.length - 1] = 1;
+  return stops;
+}
+
+/** Correct the visible panel bounds for a target scroll position during a flight. */
+export function getHorizontalJourneyProjectedRect(section: HTMLElement, targetScroll: number) {
+  const journey = getJourney();
+  const panel = getPanel(section);
+  if (!journey || !panel) return null;
+  const { start, verticalDistance, horizontalDistance } = getJourneyNumbers(journey);
+  const progressAt = (scroll: number) => Math.max(0, Math.min(1, (scroll - start) / Math.max(1, verticalDistance)));
+  const currentX = -(revealPosition?.x ?? horizontalDistance * progressAt(window.scrollY));
+  const targetX = -horizontalDistance * progressAt(targetScroll);
+  const rect = section.getBoundingClientRect();
+  const shiftX = targetX - currentX;
+  return { left: rect.left + shiftX, right: rect.right + shiftX, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height };
+}

@@ -15,7 +15,39 @@ export const scale = 1;
 export const HERO_SHIP_POSITION: readonly [number, number, number] = [1.5, -0.1, 0];
 
 // Hero-only size multiplier; fades back to 1 as the ship leaves the hero.
-export const HERO_SHIP_SCALE = 2.5;
+export const HERO_SHIP_SCALE = 1.2;
+export const HERO_SHIP_NOSE_OFFSET = 1.05;
+export const HERO_SHIP_TOP_RESERVE = 0.06;
+export const HERO_SHIP_HEADER_HEIGHT = 68;
+export const HERO_SHIP_TOP_CLEARANCE = 0.035;
+export const HERO_SHIP_CAMERA_TARGET_Y = 0.55;
+export const SHIP_IDLE_SPIN = 0.15;
+export const PARK_X = 0.9;
+export const PARK_Y = 0.5;
+export const PARK_SCALE = 0.58;
+export const PARK_DEPTH = 4;
+export const PARK_HOVER_AMPLITUDE = 0.025;
+// Manual desktop journey: restrained screen-space arcs within the right margin.
+export const MANUAL_FLIGHT_ARC_WIDTH = 0.028;
+export const MANUAL_FLIGHT_ARC_HEIGHT = 0.18;
+export const MANUAL_FLIGHT_BANK = 0.18;
+export const MANUAL_FLIGHT_HANDOFF_SPAN = 0.045;
+export const ORBIT_TURNS = 1;
+export const ORBIT_DURATION = 1300;
+export const TRAVEL_DURATION = 900;
+export const SETTLE_DURATION = 500;
+export const ORBIT_RADIUS_X = 0.55;
+export const ORBIT_RADIUS_Y = 0.46;
+export const ORBIT_TILT = 0.21;
+export const ORBIT_RADIUS_INSET = 0.15;
+export const ORBIT_RATE_VARIATION = 0.5;
+export const ORBIT_SCALE_BASE = 0.9;
+export const ORBIT_SCALE_AMPLITUDE = 0.1;
+
+export const HERO_SHIP_BREAKPOINT_OVERRIDES = {
+  desktop: { minWidth: 1024, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },
+  tablet: { minWidth: 768, scale: HERO_SHIP_SCALE, idleSpin: SHIP_IDLE_SPIN },
+} as const;
 
 // Three-quarter rotation (radians): nose toward upper-right.
 // [pitch, yaw, roll] — yaw rotates nose right, pitch tilts nose up.

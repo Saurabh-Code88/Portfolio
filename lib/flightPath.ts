@@ -1,6 +1,9 @@
 import { CatmullRomCurve3, Vector3 } from "three";
+import { getHorizontalJourneySectionStops } from "@/lib/horizontalJourney";
 
 export const FLIGHT_SECTION_IDS = ["hero", "toolkit", "projects", "research", "experience", "contact"] as const;
+
+export type FlightPhase = "undock" | "travel" | "approach" | "orbit" | "settle" | "idle";
 
 // Ship dwell stops beside each section — x offsets keep the ship in the margins,
 // never behind a centered content panel. Research sits toward the bright right side.
@@ -15,7 +18,104 @@ export const FLIGHT_WAYPOINTS = [
 
 export const flightCurve = new CatmullRomCurve3(FLIGHT_WAYPOINTS, false, "catmullrom", 0.5);
 
+export type FlightSectionId = (typeof FLIGHT_SECTION_IDS)[number];
+export type FlightProgressSnapshot = {
+  sectionId: FlightSectionId;
+  targetSectionId: FlightSectionId | null;
+  progress: number;
+  isFlying: boolean;
+  isParked: boolean;
+  phase: FlightPhase;
+  tailX?: number;
+  tailY?: number;
+  revealSectionId?: FlightSectionId;
+  revealProgress?: number;
+};
+
+let flightProgressSnapshot: FlightProgressSnapshot = {
+  sectionId: "hero",
+  targetSectionId: null,
+  progress: 0,
+  isFlying: false,
+  isParked: false,
+  phase: "idle",
+};
+const flightProgressListeners = new Set<() => void>();
+
+export const flightProgressStore = {
+  getSnapshot: () => flightProgressSnapshot,
+  subscribe(listener: () => void) {
+    flightProgressListeners.add(listener);
+    return () => flightProgressListeners.delete(listener);
+  },
+  publish(next: FlightProgressSnapshot) {
+    if (
+      Math.abs(next.progress - flightProgressSnapshot.progress) < 0.0005
+      && next.sectionId === flightProgressSnapshot.sectionId
+      && next.targetSectionId === flightProgressSnapshot.targetSectionId
+      && next.isFlying === flightProgressSnapshot.isFlying
+      && next.isParked === flightProgressSnapshot.isParked
+      && next.phase === flightProgressSnapshot.phase
+      && next.revealSectionId === flightProgressSnapshot.revealSectionId
+      && Math.abs((next.revealProgress ?? 0) - (flightProgressSnapshot.revealProgress ?? 0)) < .001
+      && Math.abs((next.tailX ?? 0) - (flightProgressSnapshot.tailX ?? 0)) < .5
+      && Math.abs((next.tailY ?? 0) - (flightProgressSnapshot.tailY ?? 0)) < .5
+    ) return;
+    flightProgressSnapshot = next;
+    flightProgressListeners.forEach((listener) => listener());
+  },
+};
+
+export function easeInOutCubic(value: number) {
+  const t = Math.max(0, Math.min(1, value));
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+export function smoothstep(value: number) {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+}
+
+export { sampleOrbit, sampleCubicBezier, type OrbitSample } from "./orbitPath";
+
+export function sampleCubicBezier3(
+  progress: number,
+  start: Vector3,
+  control1: Vector3,
+  control2: Vector3,
+  end: Vector3,
+  position: Vector3,
+  tangent: Vector3,
+) {
+  const t = Math.max(0, Math.min(1, progress));
+  const inverse = 1 - t;
+  const inverseSquared = inverse * inverse;
+  const tSquared = t * t;
+  position.set(
+    inverseSquared * inverse * start.x + 3 * inverseSquared * t * control1.x + 3 * inverse * tSquared * control2.x + tSquared * t * end.x,
+    inverseSquared * inverse * start.y + 3 * inverseSquared * t * control1.y + 3 * inverse * tSquared * control2.y + tSquared * t * end.y,
+    inverseSquared * inverse * start.z + 3 * inverseSquared * t * control1.z + 3 * inverse * tSquared * control2.z + tSquared * t * end.z,
+  );
+  tangent.set(
+    3 * inverseSquared * (control1.x - start.x) + 6 * inverse * t * (control2.x - control1.x) + 3 * tSquared * (end.x - control2.x),
+    3 * inverseSquared * (control1.y - start.y) + 6 * inverse * t * (control2.y - control1.y) + 3 * tSquared * (end.y - control2.y),
+    3 * inverseSquared * (control1.z - start.z) + 6 * inverse * t * (control2.z - control1.z) + 3 * tSquared * (end.z - control2.z),
+  );
+  return position;
+}
+
+export function getFlightSectionId(progress: number, stops: readonly number[]): FlightSectionId {
+  const bounded = Math.max(0, Math.min(1, progress));
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const midpoint = (stops[index] + stops[index + 1]) / 2;
+    if (bounded < midpoint) return FLIGHT_SECTION_IDS[index];
+  }
+  return FLIGHT_SECTION_IDS[FLIGHT_SECTION_IDS.length - 1];
+}
+
 export function getSectionStops(documentHeight: number, viewportHeight: number) {
+  const horizontalStops = getHorizontalJourneySectionStops(documentHeight, viewportHeight);
+  if (horizontalStops) return horizontalStops;
   const maxScroll = Math.max(1, documentHeight - viewportHeight);
   let previous = 0;
   const stops = FLIGHT_SECTION_IDS.map((id) => {
@@ -45,8 +145,9 @@ export function sampleFlight(progress: number, stops: readonly number[] = FLIGHT
   const start = stops[segment];
   const end = Math.max(start + 0.0001, stops[segment + 1]);
   const local = Math.max(0, Math.min(1, (bounded - start) / (end - start)));
-  const eased = local * local * (3 - 2 * local);
-  const curveProgress = (segment + eased) / (stops.length - 1);
+  // Section stops identify where the ship is in the document. They must not
+  // ease independently: that creates a stop at every section boundary.
+  const curveProgress = (segment + local) / (stops.length - 1);
   return {
     curveProgress,
     warp: Math.sin(Math.PI * local),

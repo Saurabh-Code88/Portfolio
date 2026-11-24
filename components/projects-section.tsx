@@ -18,20 +18,29 @@ export function ProjectsSection({ headingLevel = 2 }: { headingLevel?: 1 | 2 }) 
 
       <div className="project-list">
         {projects.map((project) => (
-          <article className="project-card" key={project.slug}>
-            <ArchitectureDiagram project={project} />
-            <div className="project-card__body">
-              <div>
-              {headingLevel === 1 ? (
-                <h2><Link href={`/projects/${project.slug}`}>{project.title}</Link></h2>
-              ) : (
-                <h3><Link href={`/projects/${project.slug}`}>{project.title}</Link></h3>
-              )}
-                <p>{project.oneLiner}</p>
+          <details className="project-card" key={project.slug}>
+            <summary className="project-card__summary">
+              {headingLevel === 1 ? <h2>{project.title}</h2> : <h3>{project.title}</h3>}
+              <p>{project.oneLiner}</p>
+              <ul className="tag-list project-card__tags" aria-label={`${project.title} technologies`}>
+                {project.stack.map((technology) => <li key={technology}>{technology}</li>)}
+              </ul>
+            </summary>
+            <div className="project-card__details">
+              <ArchitectureDiagram project={project} />
+              <div className="project-card__body">
+                <div>
+                  <p>{project.problem}</p>
+                  {project.metric && <p className="project-metric"><span>{project.metric.value}</span> {project.metric.label}</p>}
+                  <ul className="result-list">
+                    {project.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}
+                  </ul>
+                  <Link className="project-detail-link" href={`/projects/${project.slug}`}>{siteCopy.projectDetailLabel}</Link>
+                </div>
+                <ProjectActions project={project} />
               </div>
-              <ProjectActions project={project} />
             </div>
-          </article>
+          </details>
         ))}
       </div>
     </section>
