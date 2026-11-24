@@ -48,7 +48,8 @@ export function getDesktopJourneyFlightGeometry() {
     return Math.max(0, Math.min(1, ((target ?? start) - start) / verticalDistance));
   });
   stops[0] = 0;
-  return { start, verticalDistance, stops };
+  return { start, verticalDistance, stops, horizontalDistance: getJourneyNumbers(journey).horizontalDistance,
+    documentDistance: Math.max(1, document.documentElement.scrollHeight - window.innerHeight) };
 }
 
 /** Read the same measured scroll geometry as the track, without relying on RAF order. */
@@ -61,7 +62,7 @@ export function getHorizontalJourneyReadingPosition(sections: readonly HTMLEleme
   if (!viewport || panels.some((panel) => !panel)) return null;
   const progress = Math.max(0, Math.min(1, (window.scrollY - start) / Math.max(1, verticalDistance)));
   return {
-    position: progress * horizontalDistance + viewport.clientWidth / 2,
+    position: (revealPosition?.x ?? progress * horizontalDistance) + viewport.clientWidth / 2,
     starts: panels.map((panel) => panel!.offsetLeft),
   };
 }
@@ -106,7 +107,7 @@ export function getHorizontalJourneyProjectedRect(section: HTMLElement, targetSc
   if (!journey || !panel) return null;
   const { start, verticalDistance, horizontalDistance } = getJourneyNumbers(journey);
   const progressAt = (scroll: number) => Math.max(0, Math.min(1, (scroll - start) / Math.max(1, verticalDistance)));
-  const currentX = -horizontalDistance * progressAt(window.scrollY);
+  const currentX = -(revealPosition?.x ?? horizontalDistance * progressAt(window.scrollY));
   const targetX = -horizontalDistance * progressAt(targetScroll);
   const rect = section.getBoundingClientRect();
   const shiftX = targetX - currentX;

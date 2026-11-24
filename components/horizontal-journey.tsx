@@ -2,6 +2,8 @@
 
 import { Children, useLayoutEffect, useRef } from "react";
 import { journeyRevealPosition, type JourneyRevealPosition } from "@/lib/horizontalJourney";
+import { flightProgressStore } from "@/lib/flightPath";
+import { JOURNEY_SCROLL_FACTOR, smoothJourneyPosition } from "@/lib/journeyMotion";
 
 /** A native vertical scroll region that translates the existing sections horizontally. */
 export function HorizontalJourney({ children }: { children: React.ReactNode }) {
@@ -21,19 +23,28 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
     let frame = 0;
     let initialPositionHandled = false;
     let revealGeometry: JourneyRevealPosition | null = null;
+    let displayedX: number | null = null;
+    let lastFrame = 0;
 
-    const syncTrack = () => {
+    const syncTrack = (now: number) => {
       frame = 0;
       if (!horizontal) return;
       const start = Number(region.dataset.scrollStart || 0);
       const verticalDistance = Number(region.dataset.verticalDistance || 1);
       const horizontalDistance = Number(region.dataset.horizontalDistance || 0);
       const progress = Math.max(0, Math.min(1, (window.scrollY - start) / Math.max(1, verticalDistance)));
-      track.style.transform = `translate3d(${-horizontalDistance * progress}px, 0, 0)`;
+      const target = horizontalDistance * progress;
+      const smoothing = Boolean(revealGeometry) && !flightProgressStore.getSnapshot().isFlying;
+      displayedX = displayedX === null || !smoothing ? target
+        : smoothJourneyPosition(displayedX, target, lastFrame ? (now - lastFrame) / 1000 : 1 / 60);
+      lastFrame = now;
+      track.style.transform = `translate3d(${-displayedX}px, 0, 0)`;
       if (revealGeometry) {
-        revealGeometry.x = horizontalDistance * progress;
+        revealGeometry.x = displayedX;
         journeyRevealPosition.publish(revealGeometry);
       }
+      if (displayedX !== target) frame = requestAnimationFrame(syncTrack);
+      else lastFrame = 0;
     };
     const requestSync = () => {
       if (!frame) frame = requestAnimationFrame(syncTrack);
@@ -56,6 +67,7 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
 
       if (!horizontal) {
         revealGeometry = null;
+        displayedX = null;
         journeyRevealPosition.publish(null);
         delete region.dataset.horizontalJourney;
         delete region.dataset.scrollStart;
@@ -68,7 +80,8 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
 
       const horizontalDistance = Math.max(0, track.scrollWidth - width);
       const tallestPanel = Math.max(height, ...panels.map((panel) => panel.scrollHeight), ...scrollableContent.map((content) => content.scrollHeight));
-      const verticalDistance = horizontalDistance + Math.max(0, tallestPanel - height);
+      const verticalDistance = horizontalDistance * (window.innerWidth >= 1024 ? JOURNEY_SCROLL_FACTOR : 1)
+        + Math.max(0, tallestPanel - height);
       const start = region.getBoundingClientRect().top + window.scrollY;
       region.dataset.horizontalJourney = "active";
       region.dataset.scrollStart = String(start);
@@ -81,6 +94,7 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
           id: panel.querySelector<HTMLElement>("section[id]")?.id ?? "", offset: panel.offsetLeft,
         })),
       } : null;
+      displayedX = null;
       if (!revealGeometry) journeyRevealPosition.publish(null);
       if (!initialPositionHandled) {
         initialPositionHandled = true;

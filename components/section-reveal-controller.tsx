@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { easeInOutCubic, flightProgressStore, FLIGHT_SECTION_IDS } from "@/lib/flightPath";
 import { getHorizontalJourneyScrollTarget, journeyRevealPosition } from "@/lib/horizontalJourney";
 import { sectionArrivalProgress, sectionRevealStyle } from "@/lib/sectionReveal";
+import { fluidRevealStyle } from "@/lib/journeyMotion";
 
 const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .research-panel, .experience-entry, .education-column, .contact-links";
 
@@ -48,16 +49,45 @@ export function SectionRevealController() {
     });
 
     const sections = FLIGHT_SECTION_IDS.filter((id) => id !== "hero").map((id) => ({
-      id, element: document.getElementById(id), targets: revealTargets(id), complete: false, lastProgress: -1,
+      id, element: document.getElementById(id), targets: revealTargets(id), complete: false, lastProgress: -1, floor: 0,
     }));
+    const layouts = new Map<HTMLElement, { left: number; top: number }>();
+    let lastTailX = -1, lastTailY = -1;
+    let lastNavigationTarget: string | null = null;
+    let wasFluid = false;
+    let layoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const measureLayouts = () => {
+      const track = document.querySelector<HTMLElement>(".horizontal-journey__track");
+      if (!track) return;
+      const targets = sections.flatMap(({ targets }) => targets);
+      targets.forEach((element) => {
+        let left = 0, top = 0;
+        let node: HTMLElement | null = element;
+        while (node && node !== track) {
+          left += node.offsetLeft;
+          top += node.offsetTop;
+          const parent = node.offsetParent as HTMLElement | null;
+          if (parent && parent !== track) { left += parent.clientLeft; top += parent.clientTop; }
+          node = parent;
+        }
+        layouts.set(element, { left, top });
+      });
+    };
     let desktop = false;
     const restoreDesktop = () => {
-      sections.forEach(({ targets }) => targets.forEach((element) => {
-        stop(element);
-        element.style.opacity = "1";
-        element.style.transform = "none";
-        revealed.add(element);
-      }));
+      sections.forEach(({ targets, element: section }) => {
+        section?.classList.remove("section-reveal--unfolding");
+        section?.style.removeProperty("--section-arrival");
+        targets.forEach((element) => {
+          stop(element);
+          element.style.opacity = "1";
+          element.style.transform = "none";
+          element.style.transformOrigin = "";
+          element.style.pointerEvents = "";
+          element.style.willChange = "";
+          revealed.add(element);
+        });
+      });
     };
     const syncDesktop = () => {
       const geometry = journeyRevealPosition.getSnapshot();
@@ -76,19 +106,47 @@ export function SectionRevealController() {
         previousTarget = null;
         previousPhase = "idle";
         desktop = true;
+        measureLayouts();
       }
       const flight = flightProgressStore.getSnapshot();
+      const fluid = document.body.classList.contains("space-canvas-active");
+      if (wasFluid && !fluid) {
+        restoreDesktop();
+        sections.forEach((section) => { section.complete = true; });
+      }
+      wasFluid = fluid;
+      const tailX = flight.tailX ?? geometry.width * .9;
+      const tailY = flight.tailY ?? window.innerHeight * .6;
+      const anchorChanged = Math.abs(tailX - lastTailX) >= .5 || Math.abs(tailY - lastTailY) >= .5;
+      lastTailX = tailX; lastTailY = tailY;
+      if (flight.isFlying && flight.targetSectionId !== lastNavigationTarget) {
+        sections.forEach((section) => { section.floor = Math.max(section.floor, section.lastProgress, 0); });
+      }
+      lastNavigationTarget = flight.isFlying ? flight.targetSectionId : null;
       for (const section of sections) {
         const panel = geometry.panels.find(({ id }) => id === section.id);
         if (!panel) continue;
         let progress = sectionArrivalProgress(geometry.x, panel.offset, geometry.width);
-        // Arrival phases share the same visible state instead of restarting a spring.
-        if (flight.targetSectionId === section.id && ["orbit", "settle"].includes(flight.phase)) progress = 1;
+        if (fluid) progress = flight.revealSectionId === section.id ? flight.revealProgress ?? 0 : 0;
+        else if (flight.targetSectionId === section.id && ["orbit", "settle"].includes(flight.phase)) progress = 1;
+        progress = Math.max(progress, section.floor);
         if (progress >= 1 || section.element?.contains(document.activeElement)) section.complete = true;
         if (section.complete) progress = 1;
-        if (section.lastProgress === progress) continue;
+        section.element?.classList.toggle("section-reveal--unfolding", fluid && !section.complete);
+        if (fluid) section.element?.style.setProperty("--section-arrival", String(progress));
+        if (section.lastProgress === progress && (!fluid || !anchorChanged || progress === 1 || progress === 0)) continue;
         section.lastProgress = progress;
         section.targets.forEach((element, index) => {
+          if (fluid) {
+            const value = fluidRevealStyle(progress, index);
+            const layout = layouts.get(element);
+            element.style.transformOrigin = layout ? `${tailX - (layout.left - geometry.x)}px ${tailY - layout.top}px` : "right center";
+            element.style.opacity = String(value.opacity);
+            element.style.transform = progress === 1 ? "none" : `scale(${value.x}, ${value.y}) skewY(${value.skew}deg)`;
+            element.style.pointerEvents = progress < .95 ? "none" : "";
+            element.style.willChange = progress > 0 && progress < 1 ? "transform, opacity" : "";
+            return;
+          }
           const value = sectionRevealStyle(progress, index, element.classList.contains("section-heading"));
           element.style.transformOrigin = "center";
           element.style.opacity = String(value.opacity);
@@ -142,7 +200,30 @@ export function SectionRevealController() {
     });
     const unsubscribe = flightProgressStore.subscribe(onStoreUpdate);
     const unsubscribeJourney = journeyRevealPosition.subscribe(syncDesktop);
-    const onFocus = () => { if (desktop) syncDesktop(); };
+    const layoutObserver = new ResizeObserver(() => {
+      if (!desktop) return;
+      clearTimeout(layoutTimer);
+      layoutTimer = setTimeout(() => {
+        measureLayouts();
+        sections.forEach((section) => { section.lastProgress = -1; });
+        syncDesktop();
+      }, 0);
+    });
+    sections.forEach(({ element, targets }) => {
+      if (element) layoutObserver.observe(element);
+      targets.forEach((target) => layoutObserver.observe(target));
+    });
+    const onFocus = (event: FocusEvent) => {
+      if (!desktop) return;
+      const target = event.target;
+      sections.forEach((section) => {
+        if (target instanceof Node && section.element?.contains(target)) {
+          section.complete = true;
+          section.lastProgress = -1;
+        }
+      });
+      syncDesktop();
+    };
     document.addEventListener("focusin", onFocus, true);
     reducedMotion.addEventListener("change", syncDesktop);
     syncDesktop();
@@ -203,6 +284,8 @@ export function SectionRevealController() {
     return () => {
       unsubscribe();
       unsubscribeJourney();
+      layoutObserver.disconnect();
+      clearTimeout(layoutTimer);
       document.removeEventListener("focusin", onFocus, true);
       reducedMotion.removeEventListener("change", syncDesktop);
       if (desktop) restoreDesktop();

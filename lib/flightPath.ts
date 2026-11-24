@@ -26,6 +26,10 @@ export type FlightProgressSnapshot = {
   isFlying: boolean;
   isParked: boolean;
   phase: FlightPhase;
+  tailX?: number;
+  tailY?: number;
+  revealSectionId?: FlightSectionId;
+  revealProgress?: number;
 };
 
 let flightProgressSnapshot: FlightProgressSnapshot = {
@@ -52,6 +56,10 @@ export const flightProgressStore = {
       && next.isFlying === flightProgressSnapshot.isFlying
       && next.isParked === flightProgressSnapshot.isParked
       && next.phase === flightProgressSnapshot.phase
+      && next.revealSectionId === flightProgressSnapshot.revealSectionId
+      && Math.abs((next.revealProgress ?? 0) - (flightProgressSnapshot.revealProgress ?? 0)) < .001
+      && Math.abs((next.tailX ?? 0) - (flightProgressSnapshot.tailX ?? 0)) < .5
+      && Math.abs((next.tailY ?? 0) - (flightProgressSnapshot.tailY ?? 0)) < .5
     ) return;
     flightProgressSnapshot = next;
     flightProgressListeners.forEach((listener) => listener());

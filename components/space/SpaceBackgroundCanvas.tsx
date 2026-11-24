@@ -20,10 +20,10 @@ import {
 } from "three";
 import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
-import { getDesktopJourneyFlightGeometry, getHorizontalJourneyProjectedRect } from "@/lib/horizontalJourney";
+import { getDesktopJourneyFlightGeometry, getHorizontalJourneyProjectedRect, journeyRevealPosition } from "@/lib/horizontalJourney";
 import { sampleManualFlight, type ManualFlightSample } from "@/lib/manualFlight";
 import { createScrollOrbitSample, sampleScrollOrbit, type ScrollOrbitBounds } from "@/lib/scrollOrbit";
-import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId } from "@/lib/flightPath";
+import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId, type FlightProgressSnapshot } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
   HERO_SHIP_CAMERA_TARGET_Y,
@@ -229,6 +229,7 @@ function FlightShip({
   const stationGroup = useRef<Group>(null);
   const stationUserGroup = useRef<Group>(null);
   const camera = useThree((state) => state.camera);
+  const canvasSize = useThree((state) => state.size);
   const gl = useThree((state) => state.gl);
   const heroCameraZ = useRef(camera.position.z);
   const shipNoseOffset = useRef(HERO_SHIP_NOSE_OFFSET);
@@ -247,6 +248,8 @@ function FlightShip({
   const manualOrbitBounds = useRef<ScrollOrbitBounds[]>([]);
   const scrollOrbit = useMemo(createScrollOrbitSample, []);
   const stationSpin = useRef(0);
+  const hoverBlend = useRef(0);
+  const tailPoint = useMemo(() => new Vector3(), []);
   const manualSample = useRef<ManualFlightSample>({ x: PARK_X, y: PARK_Y, scale: PARK_SCALE, bank: 0, pitch: 0, departure: 0, segment: 0, local: 0, phase: "idle" });
   const manualHandoff = useRef<{ progress: number; position: Vector3; quaternion: Quaternion; scale: number } | null>(null);
   const manualNeedsHandoff = useRef(false);
@@ -316,6 +319,16 @@ function FlightShip({
   const dockQuat = useMemo(() => new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0)), []);
   const idleSpinRotation = useMemo(() => new Quaternion(), []);
   const idleSpinAngle = useRef(0);
+  const publishShipFlight = useCallback((snapshot: FlightProgressSnapshot) => {
+    const root = shipUserGroup.current ?? group.current;
+    if (!desktopJourney.current || !root) { flightProgressStore.publish(snapshot); return; }
+    root.updateWorldMatrix(true, false);
+    camera.updateMatrixWorld();
+    tailPoint.set(0, 0, -.85).applyMatrix4(root.matrixWorld).project(camera);
+    flightProgressStore.publish({ ...snapshot,
+      tailX: (tailPoint.x + 1) * canvasSize.width / 2,
+      tailY: (1 - tailPoint.y) * canvasSize.height / 2 });
+  }, [camera, canvasSize, tailPoint, group]);
   const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
   const modelMeasured = useCallback((bounds: { nose: number }) => {
     if (Number.isFinite(bounds.nose) && bounds.nose > 0) shipNoseOffset.current = bounds.nose;
@@ -488,7 +501,8 @@ function FlightShip({
         ? Math.max(0.001, stops.current[sectionIndex] - stops.current[sectionIndex - 1])
         : Math.max(0.001, stops.current[1] ?? 0.15);
       const distanceRatio = Math.max(0.35, Math.min(1, Math.abs(targetProgress - from) / sectionSpan));
-      const travelDuration = TRAVEL_DURATION * distanceRatio / Math.max(0.4, speed);
+      const pacing = desktopJourney.current ? 1.65 : 1;
+      const travelDuration = TRAVEL_DURATION * pacing * distanceRatio / Math.max(0.4, speed);
       const isHero = sectionId === "hero";
       const now = performance.now();
       navFlight.current = {
@@ -497,9 +511,11 @@ function FlightShip({
         sectionId: sectionId as (typeof FLIGHT_SECTION_IDS)[number],
         startedAt: now,
         travelDuration,
-        orbitDuration: isHero ? 0 : ORBIT_DURATION / Math.max(0.4, speed),
-        settleDuration: SETTLE_DURATION / Math.max(0.4, speed),
-        scrollFrom: window.scrollY,
+        orbitDuration: isHero ? 0 : ORBIT_DURATION * pacing / Math.max(0.4, speed),
+        settleDuration: SETTLE_DURATION * pacing / Math.max(0.4, speed),
+        scrollFrom: desktopJourney.current && journeyRevealPosition.getSnapshot()
+          ? desktopJourney.current.start + journeyRevealPosition.getSnapshot()!.x / Math.max(1, desktopJourney.current.horizontalDistance) * desktopJourney.current.verticalDistance
+          : window.scrollY,
         scrollTo: targetProgress * maxScroll,
         speed,
         fromScreen,
@@ -570,7 +586,7 @@ function FlightShip({
       if (navFlight.current && group.current && desktopJourney.current) {
         const geometry = desktopJourney.current;
         manualHandoff.current = {
-          progress: (window.scrollY - geometry.start) / geometry.verticalDistance,
+          progress: (journeyRevealPosition.getSnapshot()?.x ?? 0) / Math.max(1, geometry.horizontalDistance),
           position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x,
         };
         returnToPark.current = null;
@@ -747,6 +763,11 @@ function FlightShip({
     );
     dockLocal.set(...stationPreset.dockPoint);
     const journey = desktopJourney.current;
+    const journeyPosition = journeyRevealPosition.getSnapshot();
+    const sharedProgress = journey ? MathUtils.clamp(journeyPosition
+      ? journeyPosition.x / Math.max(1, journey.horizontalDistance)
+      : (window.scrollY - journey.start) / journey.verticalDistance, 0, 1) : 0;
+    if (activeFlight) hoverBlend.current = 0;
     if (journey) stationSpin.current += Math.min(delta, .05) * STATION_JOURNEY_SPIN;
     stationEuler.set(
       stationPreset.rotation[0],
@@ -771,15 +792,13 @@ function FlightShip({
     heroDockPosition.copy(stationPosition).add(dockOffset);
     heroDockPosition.y += dockedHoverOffset;
     if (journey && state.camera instanceof PerspectiveCamera) {
-      const journeyProgress = MathUtils.clamp((window.scrollY - journey.start) / journey.verticalDistance, 0, 1);
+      const journeyProgress = sharedProgress;
       const sideBlend = smoothstep(journeyProgress / Math.max(.001, journey.stops[1] * .65));
       const sideWidth = 2 * PARK_DEPTH * Math.tan(state.camera.fov * Math.PI / 360) * state.camera.aspect * STATION_SIDE_WIDTH;
       stationWorldScale = MathUtils.lerp(stationWorldScale, sideWidth / STATION_DIAMETER, sideBlend);
       dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
-      screenToWorld(state.camera, PARK_X * state.size.width, PARK_Y * state.size.height, PARK_DEPTH,
+      screenToWorld(state.camera, PARK_X * state.size.width, .82 * state.size.height, PARK_DEPTH,
         state.size.width, state.size.height, sideDockPosition);
-      sideDockPosition.sub(dockOffset);
-      sideDockPosition.y -= Math.min(DOCK_HOVER_HEIGHT, PARK_SCALE * .78 + DOCK_ENGINE_CLEARANCE);
       stationPosition.lerp(sideDockPosition, sideBlend);
     }
     if (stationGroup.current) {
@@ -792,7 +811,7 @@ function FlightShip({
     const manualCamera = state.camera;
     if (activeFlight && journey) manualNeedsHandoff.current = true;
     if (journey && !activeFlight && manualCamera instanceof PerspectiveCamera) {
-      const manualProgress = MathUtils.clamp((window.scrollY - journey.start) / journey.verticalDistance, 0, 1);
+      const manualProgress = sharedProgress;
       const pose = sampleManualFlight(manualProgress, journey.stops, PARK_X, PARK_Y, PARK_SCALE,
         MANUAL_FLIGHT_ARC_WIDTH, MANUAL_FLIGHT_ARC_HEIGHT, MANUAL_FLIGHT_BANK, manualSample.current);
       const bounds = manualOrbitBounds.current[pose.segment];
@@ -818,6 +837,8 @@ function FlightShip({
         state.size.width, state.size.height, shipTarget);
       // Start at the actual hero depth, then move into the shared orbit plane.
       if (pose.segment === 0) shipTarget.lerpVectors(heroDockPosition, shipTarget, smoothstep(pose.local / .2));
+      hoverBlend.current = MathUtils.damp(hoverBlend.current, orbit.arrival, 7, delta);
+      shipTarget.y += Math.sin(state.clock.elapsedTime * .7) * PARK_HOVER_AMPLITUDE * 2 * hoverBlend.current;
       screenRotation.setFromAxisAngle(screenAxis, -Math.atan2(orbit.tangent.x * state.size.width, -orbit.tangent.y * state.size.height));
       bankRotation.setFromAxisAngle(localForward, orbit.bank);
       flightOrientation.copy(dockQuat).premultiply(screenRotation).multiply(bankRotation);
@@ -834,29 +855,32 @@ function FlightShip({
       group.current.position.copy(shipTarget);
       group.current.quaternion.copy(orientation);
       group.current.scale.setScalar(manualScale);
-      displayedProgress.current = progress.get();
+      displayedProgress.current = (journey.start + manualProgress * journey.verticalDistance) / journey.documentDistance;
       flightScreenVelocity.set(0, 0);
       warp.current = 0;
       enginePower.current = 0.7;
       if (trail.current) trail.current.visible = false;
-      flightProgressStore.publish({
+      publishShipFlight({
         sectionId: getFlightSectionId(displayedProgress.current, stops.current), targetSectionId: null,
         // Store phases orchestrate navigation reveals. Manual travel must release
         // a cancelled navigation target immediately; its own phase lives in pose.
         progress: displayedProgress.current, isFlying: false, isParked: orbit.phase === "idle", phase: "idle",
+        revealSectionId: FLIGHT_SECTION_IDS[pose.segment + 1], revealProgress: orbit.arrival,
       });
       return;
     }
     if (!journey) { manualHandoff.current = null; manualNeedsHandoff.current = false; }
 
-    flightProgressStore.publish({
+    const frameSnapshot: FlightProgressSnapshot = {
       sectionId: getFlightSectionId(p, stops.current),
       targetSectionId: activeFlight?.sectionId ?? null,
       progress: p,
       isFlying: Boolean(activeFlight),
       isParked: !activeFlight && heroBlend >= 1,
       phase,
-    });
+      revealSectionId: activeFlight?.sectionId,
+      revealProgress: activeFlight ? MathUtils.clamp((now - activeFlight.startedAt - activeFlight.travelDuration - activeFlight.orbitDuration) / activeFlight.settleDuration, 0, 1) : 1,
+    };
 
     if (activeFlight?.sectionId === "hero" || (heroBlend < 1 && !activeFlight)) {
       // ── Hero parking position with idle bob ──
@@ -955,8 +979,10 @@ function FlightShip({
         displayedProgress.current = flight?.to ?? 0;
         navFlight.current = null;
         returnToPark.current = null;
+        manualNeedsHandoff.current = false;
         document.body.classList.remove("orbit-flight-active", "orbit-flight-behind");
       }
+      publishShipFlight(frameSnapshot);
       return;
     }
 
@@ -1144,8 +1170,11 @@ function FlightShip({
       }
       navFlight.current = null;
       returnToPark.current = null;
+      manualNeedsHandoff.current = false;
+      manualHandoff.current = null;
       document.body.classList.remove("orbit-flight-active", "orbit-flight-behind");
     }
+    publishShipFlight(frameSnapshot);
   });
 
   return (

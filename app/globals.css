@@ -2250,6 +2250,18 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   }
 }
 
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .horizontal-journey--active .horizontal-journey__track { position: relative; }
+  .horizontal-journey--active .content-section.section-reveal--unfolding {
+    overflow: visible;
+    background: rgb(5 7 10 / calc(.24 * var(--section-arrival, 0)));
+    border-color: rgb(232 160 69 / calc(.12 * var(--section-arrival, 0)));
+  }
+  .section-reveal--unfolding :is(.section-heading, .toolkit-group, .project-card, .research-panel, .experience-entry, .education-column, .contact-links) {
+    transition-property: background-color, border-color, color;
+  }
+}
+
 /* Desktop environment: a decoded nebula composites over the persistent planet.
    Its journey opacity has no time easing, so stopping/reversing holds composition. */
 .space-background__nebula { display: none; }

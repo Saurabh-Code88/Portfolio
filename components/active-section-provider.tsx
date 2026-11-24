@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { selectActiveSection } from "@/lib/activeSection";
-import { getHorizontalJourneyReadingPosition } from "@/lib/horizontalJourney";
+import { getHorizontalJourneyReadingPosition, journeyRevealPosition } from "@/lib/horizontalJourney";
 
 const ActiveSectionContext = createContext<string | null>(null);
 
@@ -64,6 +64,7 @@ export function ActiveSectionProvider({ children }: { children: ReactNode }) {
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule, { passive: true });
     media.addEventListener("change", schedule);
+    const stopJourney = journeyRevealPosition.subscribe(schedule);
     schedule();
     return () => {
       cancelAnimationFrame(frame);
@@ -72,6 +73,7 @@ export function ActiveSectionProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       media.removeEventListener("change", schedule);
+      stopJourney();
     };
   }, [pathname]);
 

@@ -1,5 +1,6 @@
 import { Vector2 } from "three";
 import { sampleCubicBezier, sampleOrbit } from "./orbitPath.ts";
+import { arrivalExpansion } from "./journeyMotion.ts";
 import { ORBIT_RADIUS_INSET, ORBIT_RATE_VARIATION, ORBIT_SCALE_AMPLITUDE, ORBIT_SCALE_BASE, ORBIT_TILT, ORBIT_TURNS, PARK_SCALE } from "./ship.config.ts";
 
 export type ScrollOrbitBounds = { centerX: number; centerY: number; radiusX: number; radiusY: number; left: number; right: number };
@@ -10,7 +11,7 @@ export function createScrollOrbitSample() {
     position: new Vector2(), tangent: new Vector2(), start: new Vector2(), end: new Vector2(),
     control1: new Vector2(), control2: new Vector2(), orbitPosition: new Vector2(), orbitTangent: new Vector2(),
     orbit: { angle: 0, angleRate: 0, radiusScale: 1, scale: 1 },
-    scale: PARK_SCALE, bank: 0, headingWeight: 0,
+    scale: PARK_SCALE, bank: 0, headingWeight: 0, arrival: 0,
     phase: "idle" as "idle" | "travel" | "orbit" | "settle",
   };
 }
@@ -50,5 +51,6 @@ export function sampleScrollOrbit(local: number, bounds: ScrollOrbitBounds,
   }
   result.headingWeight = ease(Math.min(1, t / .12, (1 - t) / .12));
   result.bank = result.phase === "orbit" ? Math.cos(info.angle) * ORBIT_TILT : 0;
+  result.arrival = arrivalExpansion(t);
   return result;
 }
