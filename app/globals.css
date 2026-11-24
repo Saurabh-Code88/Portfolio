@@ -373,23 +373,31 @@ pre {
   background: var(--bg);
 }
 
-body.orbit-flight-active .space-background--active {
+/* Only the transparent scene follows the existing orbit foreground/behind signal. */
+.space-background-canvas {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+}
+
+body.orbit-flight-active .space-background-canvas--active {
   z-index: 2;
   background: transparent;
 }
 
-body.orbit-flight-active.orbit-flight-behind .space-background--active {
+body.orbit-flight-active.orbit-flight-behind .space-background-canvas--active {
   z-index: 0;
 }
 
-body.orbit-flight-active .space-background--active .space-background__image,
-body.orbit-flight-active .space-background--active .space-background__atmosphere,
-body.orbit-flight-active .space-background--active .space-background__vignette,
-body.orbit-flight-active .space-background--active .space-background__stars {
+body.orbit-flight-active .space-background--active:not(.space-background--desktop-journey) .space-background__image,
+body.orbit-flight-active .space-background--active:not(.space-background--desktop-journey) .space-background__atmosphere,
+body.orbit-flight-active .space-background--active:not(.space-background--desktop-journey) .space-background__vignette,
+body.orbit-flight-active .space-background--active:not(.space-background--desktop-journey) .space-background__stars {
   opacity: 0;
 }
 
-body.orbit-flight-active .space-background--active canvas { pointer-events: none; }
+body.orbit-flight-active .space-background-canvas--active canvas { pointer-events: none; }
 
 .space-background__image,
 .space-background__atmosphere,
@@ -474,7 +482,7 @@ body.orbit-flight-active .space-background--active canvas { pointer-events: none
   transform: scale(1.05);
 }
 
-.space-background canvas {
+.space-background-canvas canvas {
   position: absolute;
   z-index: 3;
   inset: 0;
@@ -2129,4 +2137,87 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   .contact-section {
     padding: 24px 18px;
   }
+}
+
+/* Desktop environment: a decoded nebula composites over the persistent planet.
+   Its journey opacity has no time easing, so stopping/reversing holds composition. */
+.space-background__nebula { display: none; }
+
+.space-background--journey .space-background__nebula {
+  position: absolute;
+  z-index: 2;
+  inset: -4%;
+  display: block;
+  opacity: var(--environment-blend, 0);
+  transform: translate3d(calc(var(--environment-x, 0px) + var(--space-pointer-x, 0px) * .35), calc(var(--space-pointer-y, 0px) * .25), 0);
+  pointer-events: none;
+}
+
+.space-background__nebula-ready,
+.space-background__nebula-art {
+  position: absolute;
+  inset: 0;
+}
+
+.space-background__nebula-ready {
+  opacity: 0;
+  /* Readiness alone fades in on a late load; the scroll-controlled outer layer
+     keeps the planet visible and can still reverse immediately. */
+  transition: opacity 1s ease;
+}
+
+.space-background[data-nebula-state="ready"] .space-background__nebula-ready { opacity: 1; }
+
+.space-background__nebula-art {
+  background-image: var(--nebula-image, none);
+  background-position: center;
+  background-size: cover;
+  transform: scale(1.04);
+}
+
+.space-background--journey .space-background__nebula-art {
+  animation: nebula-atmosphere-drift 160s ease-in-out infinite alternate;
+}
+
+.space-background--journey.space-background--image .space-background__stars {
+  z-index: 3;
+  display: block;
+}
+
+.space-background--journey .space-background__stars--far {
+  opacity: calc(var(--environment-blend, 0) * .12);
+  animation: environment-stars-far 150s ease-in-out infinite alternate;
+}
+
+.space-background--journey .space-background__stars--near {
+  opacity: calc(var(--environment-blend, 0) * .07);
+  animation: environment-stars-near 110s ease-in-out infinite alternate;
+}
+
+.space-background--journey.space-background--fallback .space-background__stars--far { opacity: calc(.24 - var(--environment-blend, 0) * .12); }
+.space-background--journey.space-background--fallback .space-background__stars--near { opacity: calc(.13 - var(--environment-blend, 0) * .06); }
+
+.space-background[data-atmosphere-paused] .space-background__image,
+.space-background[data-atmosphere-paused] .space-background__atmosphere::before,
+.space-background[data-atmosphere-paused] .space-background__nebula-art,
+.space-background[data-atmosphere-paused] .space-background__stars { animation-play-state: paused; }
+
+@keyframes nebula-atmosphere-drift {
+  from { transform: translate3d(-.25%, .15%, 0) scale(1.035); }
+  to { transform: translate3d(.25%, -.15%, 0) scale(1.055); }
+}
+
+@keyframes environment-stars-far {
+  from { transform: translate3d(var(--environment-far-x, 0px), 0, 0); }
+  to { transform: translate3d(calc(var(--environment-far-x, 0px) - 3px), 2px, 0); }
+}
+
+@keyframes environment-stars-near {
+  from { transform: translate3d(var(--environment-near-x, 0px), 0, 0); }
+  to { transform: translate3d(calc(var(--environment-near-x, 0px) - 6px), 4px, 0); }
+}
+
+@media (max-width: 1023px), (prefers-reduced-motion: reduce) {
+  .space-background--journey .space-background__nebula { display: none; }
+  .space-background--journey .space-background__nebula-art { animation: none; }
 }
