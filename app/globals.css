@@ -414,7 +414,7 @@ body.orbit-flight-active .space-background-canvas--active canvas { pointer-event
 
 .space-background__image {
   inset: -3%;
-  background-image: url("/backgrounds/planetary-sunrise.webp");
+  background-image: url("/backgrounds/space-background-poster.webp");
   background-position: center 58%;
   background-size: cover;
   opacity: 0.78;
@@ -2009,7 +2009,7 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   .horizontal-journey--active .content-section,
   .horizontal-journey--active .hero-page { max-height: none; overflow: visible; }
   .space-background--image .space-background__image {
-    background-image: url("/backgrounds/planetary-sunrise-mobile.webp");
+    background-image: url("/backgrounds/space-background-mobile.webp");
     background-position: center 60%;
     transform: scale(1.05);
     animation: none;
@@ -2262,61 +2262,25 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   }
 }
 
-.space-background--journey.space-background--image .space-background__stars {
-  z-index: 3;
-  display: block;
+/* One persistent decoder; only its modest horizontal offset follows the journey. */
+.space-background__video { display: none; pointer-events: none; }
+.space-background--journey .space-background__video {
+  display: block; position: absolute; z-index: 2; left: -2%; top: -2%;
+  width: 104%; height: 104%; object-fit: cover; opacity: 0;
+  transform: translate3d(var(--video-x, 0px), 0, 0);
+  transition: opacity 600ms ease;
 }
-
-.space-background--journey .space-background__stars--far {
-  opacity: calc(var(--environment-blend, 0) * .12);
-  animation: environment-stars-far 150s ease-in-out infinite alternate;
-}
-
-.space-background--journey .space-background__stars--near {
-  opacity: calc(var(--environment-blend, 0) * .07);
-  animation: environment-stars-near 110s ease-in-out infinite alternate;
-}
-
-.space-background--journey.space-background--fallback .space-background__stars--far { opacity: calc(.24 - var(--environment-blend, 0) * .12); }
-.space-background--journey.space-background--fallback .space-background__stars--near { opacity: calc(.13 - var(--environment-blend, 0) * .06); }
-
-.space-background[data-atmosphere-paused] .space-background__image,
-.space-background[data-atmosphere-paused] .space-background__atmosphere::before,
-.space-background[data-atmosphere-paused] .space-background__stars { animation-play-state: paused; }
-
-@keyframes environment-stars-far {
-  from { transform: translate3d(var(--environment-far-x, 0px), 0, 0); }
-  to { transform: translate3d(calc(var(--environment-far-x, 0px) - 3px), 2px, 0); }
-}
-
-@keyframes environment-stars-near {
-  from { transform: translate3d(var(--environment-near-x, 0px), 0, 0); }
-  to { transform: translate3d(calc(var(--environment-near-x, 0px) - 6px), 4px, 0); }
-}
-
-@media (max-width: 1023px), (prefers-reduced-motion: reduce) {
-}
-
-/* Oversized moving region planes overlap without exposing rectangular edges. */
-.space-background__regions { display: none; position: absolute; inset: 0; z-index: 2; overflow: hidden; }
-.space-background--journey .space-background__regions { display: block; }
-.space-background__region {
-  position: absolute; inset: -28%; background-size: cover; background-repeat: no-repeat;
-  opacity: 0; transform: translate3d(var(--region-x, 0px), 0, 0);
-  animation: region-atmosphere 150s ease-in-out infinite alternate;
-  mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
-}
+.space-background--journey[data-video-state="playing"] .space-background__video { opacity: 1; }
 .space-background__reading-scrim { display: none; }
 .space-background--journey .space-background__reading-scrim {
-  display: block; position: absolute; inset: 0; z-index: 4;
-  background: linear-gradient(90deg, rgb(5 7 10 / var(--region-contrast, .4)), transparent 78%);
+  display: block; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: linear-gradient(90deg, rgb(5 7 10 / .48), rgb(5 7 10 / .16) 55%, transparent 82%);
 }
-.space-background[data-atmosphere-paused] .space-background__region { animation-play-state: paused; }
-@keyframes region-atmosphere {
-  from { transform: translate3d(var(--region-x, 0px), calc(-1 * var(--drift)), 0); }
-  to { transform: translate3d(calc(var(--region-x, 0px) + var(--drift)), var(--drift), 0); }
-}
+.space-background--journey .space-background__image { animation: none !important; }
+.space-background--journey .space-background__atmosphere::before { animation: none !important; }
+.space-background[data-atmosphere-paused] .space-background__image,
+.space-background[data-atmosphere-paused] .space-background__atmosphere::before { animation-play-state: paused; }
 @media (max-width: 1023px), (prefers-reduced-motion: reduce) {
-  .space-background--journey .space-background__regions, .space-background--journey .space-background__reading-scrim { display: none; }
-  .space-background__region { animation: none; }
+  .space-background--journey .space-background__video,
+  .space-background--journey .space-background__reading-scrim { display: none; }
 }

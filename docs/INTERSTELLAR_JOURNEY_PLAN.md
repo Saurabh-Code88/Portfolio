@@ -1,77 +1,94 @@
-# Interstellar journey ? Session 1
+# Continuous cinematic desktop background
 
-## Environment configuration
-`lib/backgroundJourney.ts` owns the six typed regions: hero/sunrise, toolkit/nebula,
-projects/asteroid belt, research/ringed gas giant, experience/black hole and contact/galaxy.
-Each config includes focal point, transition range, travel distance, parallax, drift,
-localized contrast and optional foreground assets. No portfolio content changed.
+The owner superseded the six-environment design with one continuous video.
+The deleted six-region assets remain deleted. No section-specific background loader,
+configuration, compositing planes or atmospheric animation is active.
 
-## Continuous mapping and parallax
-The existing journey position publisher supplies visible x and measured section offsets.
-Neighbor weights use smoothstep across .08?.98 of each measured span, independent of
-active-section edges. Oversized image planes translate with signed distance from their
-section, overlap, and feather outside the viewport. Alpha is normalized for source-over
-compositing. Reverse travel and halfway stops use the same deterministic mapping.
-CSS stars move at .006/.025 of journey x; artwork has region-specific parallax and slow
-CSS drift. No baked-in object is treated as a separate layer. Atmospheric motion pauses
-when the document is hidden. A localized left scrim uses interpolated region contrast.
+## Source and reproducible optimization
+The actual supplied path is `public/backgrounds/space-background.mp4`, not the proposed
+`public/space-background.mp4`. FFmpeg verified H.264 High/yuv420p, 1920x1080, 30 FPS,
+20.00 seconds, no audio, 9,808,313 bytes. Preserve it byte-for-byte.
+Run `python scripts/prepare-space-video.py /path/to/ffmpeg` with libx264/libvpx-vp9/libwebp.
+The tooling was installed temporarily outside the repository; no runtime dependency added.
 
-## Station anchoring
-The existing scene frame computes a reversible departure from .02?.82 of Home?Toolkit.
-It translates the station left and deeper while reducing scale, then marks its group
-invisible. The existing hit-test guard rejects invisible stations. The model stays mounted;
-rotation, drag, quality recovery and DPR protection retain their existing lifecycle.
-Home restores the original base position and scale. Ship pose/choreography is unchanged.
+The 18-second derivative begins at source t=2. Source t=2..18 plays normally, then
+source t=18..20 dissolves into source t=0..2 over two seconds. The final composition
+therefore joins the first at source t=2, without a browser-side second decoder.
+Encode at native 1080p/30 FPS: H.264 CRF22 slow with faststart, VP9 CRF32/cpu-used4.
+Poster is source t=2, matching loop start; static mobile derivative is 768x432.
 
-## Assets and loading
-Owner PNGs are preserved byte-for-byte and normalized through intermediate filenames
-for Windows case-only renames. Sharp generates quality-86 WebP without resizing/upscaling;
-Home also has a 768px quality-82 mobile derivative (45,058 bytes).
+## Persistent playback
+`SpaceBackground` owns one always-mounted, decorative HTML video behind the existing
+ship/station canvas and DOM content. It is autoplay/muted/playsInline/loop with controls
+disabled, no pointer events, cover fit and 2% overscan. Section changes never set src,
+seek currentTime, key the player or control playback. VP9-capable browsers choose WebM;
+otherwise H.264. A WebM media error retries MP4; exhausted errors/autoplay rejection
+leave the static poster visible. The source original is not a browser fallback.
 
-| Original | Native dimensions | PNG bytes | WebP bytes |
-|---|---|---:|---:|
-| asteroid-belt.png | 1672 ? 941 | 2,252,206 | 183,026 |
-| black-hole.png | 1672 ? 941 | 1,974,891 | 115,716 |
-| nebula.png | 1672 ? 941 | 2,270,448 | 221,044 |
-| planetary-sunrise.png | 1672 ? 941 | 2,265,358 | 205,184 |
-| ringed-gas-giant.png | 1672 ? 941 | 2,210,191 | 161,708 |
-| spiral-galaxy.png | 1672 ? 941 | 2,146,440 | 152,544 |
+Only desktop horizontal journey >=1024px with normal motion/data/power attaches a video
+source. Mobile/tablet/reduced-motion users retain static layout/background behavior,
+using regenerated poster images because the owner deleted the previous static artwork.
+A mode change pauses and detaches media; returning to eligible mode may restart playback.
+Hidden documents pause; foreground restores playback from the paused position.
 
-All six desktop WebPs total 1,039,222 bytes; PNGs total 13,119,534 bytes.
-Initial desktop background requests: Home (205,184 bytes) and adjacent Toolkit
-(221,044 bytes), totaling 426,228 bytes, excluding HTML/JS/fonts/models.
-Mobile derivative: 45,058 bytes. The 375px production browser run requested both Home
-derivatives (250,242 bytes); 768px requested desktop Home (205,184 bytes). Neither
-requested the other five desktop regions. Responsive preload duplication remains to tune.
-A 1280px canvas-enabled Home run recorded 28 resources and 3,831,008 encoded asset
-bytes after 1.5 seconds. Transfer bytes were cache-affected; this is not a cold-load HAR.
-Home is preloaded. The loader decodes before publishing CSS image readiness, loads
-visible/neighbor regions, and prioritizes a distant HUD target and its neighbors.
-Decoded regions are cached for reverse navigation. Failed/pending destinations transfer
-weight to the nearest decoded region; a persistent Home plane and procedural base remain
-beneath every region. Original PNGs never enter the rendering pipeline.
-Only desktop journey mode >=1024px with normal motion/data/power enables regions.
-Canvas-disabled desktop retains DOM regions; tablet/mobile/reduced-motion layouts remain.
+## Environmental movement and readability
+The existing measured journey publisher writes a CSS horizontal translation, bounded
+at 1.2% of viewport width. This fits inside 2% overscan with no scale animation or shake.
+Playback progresses with wall time even when scrolling stops. Existing scrims and a
+localized transparent left scrim protect content without introducing portfolio copy.
+No new global scroll listener, RAF, WebGL renderer, shader or lighting was added.
 
-## Protected systems and Session 2
-No new scroll listener, RAF, renderer, light, shader, dependency or postprocessing.
-Flight geometry, orbit choreography, ship sampler, interruption, active section detection,
-section reveals, cockpit layout, content and station quality fallbacks are preserved.
-Session 2 may tune flight choreography separately; this session does not redesign it.
-Region framing, overlap distances, station recession and readability require owner visual
-review on actual GPU hardware, especially 1920px where the 1672px source is cover-scaled.
+## Home station and protected systems
+Existing Home-only station transforms remain unchanged: departure over .02-.82 of the
+Home-to-Toolkit span translates it offscreen/deeper and scales it down; invisible groups
+cannot be hit-tested. Reverse progress restores its base position/scale. Station mounting,
+rotation/drag and reversible DPR protection retain their lifecycle.
+Horizontal journey, ship geometry/controller, destination choreography, navigation,
+interruptions, active-section detection, reveal timing, HUD and content are unchanged.
 
-## Validation and limits
-Lint, typecheck, tests and production build each exited 0; 30 tests passed.
-Production-browser DOM checks covered all six destinations at 1024/1280/1440/1920px,
-forward/reverse traversal, halfway stops and resizing without document horizontal overflow.
-768/375px and reduced-motion disabled region layers. Canvas-disabled desktop retained
-all six environments. Canvas-enabled partial traversal and rapid Contact?Research
-retargeting with wheel interruption executed. No page errors occurred in sampled normal
-runs; Three.js emitted its existing Clock deprecation warning. An intentionally aborted
-asteroid request produced its expected network error and retained the decoded nebula.
-Actual GPU visual quality, station drag/departure appearance, seam visibility and contrast
-have not been exhaustively visually verified; screenshot tooling did not return an image
-for inspection. Station departure/restoration are covered by deterministic unit tests.
-Remaining Session 2 work: owner visual framing/readability review, GPU station drag and
-return checks, responsive preload tuning, then separately authorized flight choreography.
+## Asset sizes and validation
+| Asset | Bytes |
+|---|---:|
+| Original MP4 (preserved) | 9,808,313 |
+| Seamless WebM | 4,214,623 |
+| Seamless MP4 | 8,701,466 |
+| Desktop poster | 63,982 |
+| Mobile still | 19,704 |
+
+One chosen video is downloaded, not both in normal playback. WebM is about 57% smaller
+than the source; MP4 retains similar source bitrate and fine detail with a shorter runtime.
+Both derivatives are 1920x1080/30 FPS, 18 seconds, 540 frames, yuv420p and audio-free.
+Decoded 64x36 grayscale analysis found zero frames with >99% near-black pixels.
+MP4 wrap MAE=0.9748 versus median adjacent MAE=0.8294/max=1.1693; WebM wrap
+MAE=0.9961 versus median=0.8320/max=1.2361. Thus the encoded wrap falls within
+normal frame-to-frame changes. This numerical check does not replace visual review.
+
+Lint/typecheck/tests have exited 0; 25 tests passed (eligibility, bounded reversible
+parallax, Home-only station restoration and existing protected-system suites).
+Production build exited 0. An old development preview overwrote the shared build output
+when first visited; its verified Portfolio process was stopped, and a clean rebuild also
+exited 0. Final browser checks used a fresh production server on port 3001.
+
+Browser checks at 1024/1280/1440/1920 verified one persistent player, one metadata load,
+advancing time through manual/reverse scrolling and distant HUD retargeting/interruption,
+cover fit, no pointer interception, no horizontal overflow and canvas visibility.
+A seek near the end crossed the native loop from 17.6s to 0.91s while still playing.
+Visibility simulation held currentTime=12.045723 when hidden, then resumed to 12.477839.
+The integrated page reported document.hidden=true even after bringToFront, so foreground
+playback tests explicitly simulated visibility. Actual hidden startup loaded no video.
+768px and 375px had no video src; 375px requested only the 19,704-byte mobile still.
+Reduced motion at 1280px had no video src and used the static poster. Canvas-disabled
+mode played video; canvas-enabled checks retained one visible canvas at every tested width
+and loaded both ship/station models without remount requests on navigation.
+Forced WebM failure recovered to playing MP4; forcing both formats to fail left poster
+state and video opacity=0. Expected forced-network errors were separate from normal runs,
+which had no observed page errors. Existing Three.Clock deprecation warning remains.
+
+## Remaining limits
+An inspectable screenshot confirmed video/ship/Home station compositing, but the
+integrated browser screenshot clipped rendering to its host surface despite emulated
+viewport dimensions. Full-screen visual readability, actual GPU loop perception, station
+drag and later-section station absence still need hardware visual review. Deterministic
+station departure/restoration tests pass and the previously implemented transforms were
+preserved. Foreground/background lifecycle was tested with simulated visibility events.
+No destination-specific flight choreography was changed; no merge or deployment.

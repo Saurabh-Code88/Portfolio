@@ -1,3 +1,7 @@
+> Current direction: the owner canceled the six-region backgrounds in favor of one
+> continuous desktop video. See [the current journey plan](./INTERSTELLAR_JOURNEY_PLAN.md).
+> The audit below describes historical architecture and is retained for context.
+
 ﻿# Cinematic redesign architecture audit
 
 ## Existing architecture

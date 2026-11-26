@@ -4,9 +4,8 @@ import dynamic from "next/dynamic";
 import { useScroll } from "framer-motion";
 import { Component, type ReactNode, useEffect, useRef, useState } from "react";
 import { BACKGROUND_SOURCE, ENABLE_3D_SHIP, LOW_POWER_CORE_THRESHOLD } from "@/lib/ship.config";
-import { flightProgressStore } from "@/lib/flightPath";
 import { journeyRevealPosition } from "@/lib/horizontalJourney";
-import { ENVIRONMENTS, environmentComposition, canUseBackgroundJourney } from "@/lib/backgroundJourney";
+import { canUseBackgroundJourney, videoParallax } from "@/lib/backgroundJourney";
 
 const SpaceBackgroundCanvas = dynamic(() => import("@/components/space/SpaceBackgroundCanvas"), {
   ssr: false,
@@ -88,6 +87,7 @@ export function SpaceBackground() {
 
 function EnabledSpaceBackground() {
   const backgroundRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [mode, setMode] = useState<DisplayMode>("fallback");
   const { scrollYProgress } = useScroll();
 
@@ -141,28 +141,31 @@ function EnabledSpaceBackground() {
     const connection = (navigator as Navigator & { connection?: EventTarget & { saveData?: boolean } }).connection;
     const lowPower = typeof navigator.hardwareConcurrency === "number"
       && navigator.hardwareConcurrency <= LOW_POWER_CORE_THRESHOLD;
-    const images: HTMLImageElement[] = [];
-    const ready = ENVIRONMENTS.map(() => false);
-    const requested = new Set<number>();
+    const video = videoRef.current;
+    if (!video) return;
+    let attached = false;
+    let failed = false;
+    let wanted = false;
     let disposed = false;
-    const layers = Array.from(background.querySelectorAll<HTMLElement>("[data-environment]"));
-    const load = (index: number) => {
-      if (index < 0 || index >= ENVIRONMENTS.length || requested.has(index)) return;
-      requested.add(index);
-      const image = new Image();
-      images.push(image);
-      image.decoding = "async";
-      image.onload = async () => {
-        try {
-          await image.decode();
-          if (disposed) return;
-          layers[index].style.backgroundImage = `url("${image.src}")`;
-          ready[index] = true;
-          sync();
-        } catch { /* Persistent Home artwork remains below the decoded layers. */ }
-      };
-      image.onerror = () => { layers[index].dataset.load = "error"; };
-      image.src = `/backgrounds/${ENVIRONMENTS[index].asset}.webp`;
+    const mp4 = "/backgrounds/space-background-loop.mp4";
+    const webm = "/backgrounds/space-background-loop.webm";
+    const play = () => {
+      video.play().catch(() => {
+        if (disposed || !wanted || !video.paused) return;
+        background.dataset.videoState = "poster";
+      });
+    };
+    const onPlaying = () => { background.dataset.videoState = "playing"; };
+    const onError = () => {
+      if (!attached || disposed) return;
+      background.dataset.videoState = "poster";
+      if (video.getAttribute("src") === webm) {
+        video.src = mp4;
+        if (wanted) play();
+      } else {
+        failed = true;
+        video.pause();
+      }
     };
     const sync = () => {
       if (disposed) return;
@@ -172,58 +175,61 @@ function EnabledSpaceBackground() {
       background.classList.toggle("space-background--desktop-journey", Boolean(journey) && window.innerWidth >= 1024 && !motion.matches);
       background.classList.toggle("space-background--journey", enabled);
       background.toggleAttribute("data-atmosphere-paused", document.hidden);
-      if (!enabled || !journey) return;
-      const current = Math.max(0, journey.panels.findLastIndex(p => p.offset <= journey.x));
-      const target = ENVIRONMENTS.findIndex(e => e.sectionId === flightProgressStore.getSnapshot().targetSectionId);
-      // Destination first on distant HUD flights; then neighbors of the visible region.
-      if (target >= 0) { load(target); load(target - 1); load(target + 1); }
-      load(current); load(current + 1); load(current - 1);
-      const weights = environmentComposition(journey.x, journey.panels, ready);
-      let remaining = 1;
-      for (let i = layers.length - 1; i >= 0; i--) {
-        layers[i].style.opacity = String(remaining > 0 ? weights[i] / remaining : 0);
-        remaining = Math.max(0, remaining - weights[i]);
-        const env = ENVIRONMENTS[i];
-        const distance = (journey.panels[i]?.offset ?? 0) - journey.x;
-        const shift = Math.max(-1, Math.min(1, distance / journey.width)) * journey.width * (env.travelDistance + env.parallax);
-        layers[i].style.setProperty("--region-x", `${shift}px`);
+      video.autoplay = enabled && !document.hidden && !failed;
+      if (enabled && journey) {
+        background.style.setProperty("--video-x", `${videoParallax(journey.x, journey.panels.at(-1)?.offset ?? journey.width, window.innerWidth)}px`);
       }
-      const contrast = weights.reduce((sum, w, i) => sum + w * ENVIRONMENTS[i].contrast, 0);
-      background.style.setProperty("--region-contrast", String(contrast));
-      background.style.setProperty("--environment-blend", "1");
-      background.style.setProperty("--environment-far-x", `${-journey.x * .006}px`);
-      background.style.setProperty("--environment-near-x", `${-journey.x * .025}px`);
+      if (!enabled && attached) {
+        wanted = false;
+        video.pause();
+        attached = false;
+        video.removeAttribute("src");
+        video.removeAttribute("poster");
+        video.load();
+        background.dataset.videoState = "poster";
+      }
+      if (enabled && !attached && !failed && !document.hidden) {
+        attached = true;
+        video.muted = true;
+        video.poster = "/backgrounds/space-background-poster.webp";
+        video.src = video.canPlayType('video/webm; codecs="vp9"') ? webm : mp4;
+      }
+      const shouldPlay = enabled && !document.hidden && !failed;
+      if (shouldPlay === wanted) return;
+      wanted = shouldPlay;
+      if (wanted) play();
+      else video.pause();
     };
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("error", onError);
     const unsubscribe = journeyRevealPosition.subscribe(sync);
-    const unsubscribeFlight = flightProgressStore.subscribe(sync);
     motion.addEventListener("change", sync);
     data.addEventListener("change", sync);
     connection?.addEventListener("change", sync);
+    window.addEventListener("resize", sync, { passive: true });
     document.addEventListener("visibilitychange", sync);
     sync();
     return () => {
       disposed = true;
+      video.pause();
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("error", onError);
       unsubscribe();
-      unsubscribeFlight();
       motion.removeEventListener("change", sync);
       data.removeEventListener("change", sync);
       connection?.removeEventListener("change", sync);
+      window.removeEventListener("resize", sync);
       document.removeEventListener("visibilitychange", sync);
-      images.forEach(image => { image.onload = null; image.onerror = null; });
     };
   }, []);
 
   const handleFailure = () => setMode("fallback");
   return (
     <>
-      {BACKGROUND_SOURCE === "image" && <link rel="preload" as="image" href="/backgrounds/planetary-sunrise.webp" media="(min-width: 1024px)" fetchPriority="high" />}
       <div ref={backgroundRef} className={`space-background space-background--fallback space-background--${BACKGROUND_SOURCE}`} aria-hidden="true">
         <div className="space-background__image" />
-        <div className="space-background__regions">
-          {ENVIRONMENTS.map(env => <div key={env.sectionId} data-environment={env.sectionId}
-            className="space-background__region" style={{ backgroundPosition: env.focalPoint,
-              "--drift": `${env.drift}%` } as React.CSSProperties} />)}
-        </div>
+        <video ref={videoRef} className="space-background__video" autoPlay muted playsInline loop
+          preload="none" controls={false} disablePictureInPicture tabIndex={-1} aria-hidden="true" />
         <div className="space-background__reading-scrim" />
         <div className="space-background__atmosphere" />
         <div className="space-background__stars space-background__stars--far" />
