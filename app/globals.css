@@ -414,7 +414,7 @@ body.orbit-flight-active .space-background-canvas--active canvas { pointer-event
 
 .space-background__image {
   inset: -3%;
-  background-image: url("/backgrounds/planetary-sunrise-desktop.webp");
+  background-image: url("/backgrounds/planetary-sunrise.webp");
   background-position: center 58%;
   background-size: cover;
   opacity: 0.78;
@@ -2262,46 +2262,6 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   }
 }
 
-/* Desktop environment: a decoded nebula composites over the persistent planet.
-   Its journey opacity has no time easing, so stopping/reversing holds composition. */
-.space-background__nebula { display: none; }
-
-.space-background--journey .space-background__nebula {
-  position: absolute;
-  z-index: 2;
-  inset: -4%;
-  display: block;
-  opacity: var(--environment-blend, 0);
-  transform: translate3d(calc(var(--environment-x, 0px) + var(--space-pointer-x, 0px) * .35), calc(var(--space-pointer-y, 0px) * .25), 0);
-  pointer-events: none;
-}
-
-.space-background__nebula-ready,
-.space-background__nebula-art {
-  position: absolute;
-  inset: 0;
-}
-
-.space-background__nebula-ready {
-  opacity: 0;
-  /* Readiness alone fades in on a late load; the scroll-controlled outer layer
-     keeps the planet visible and can still reverse immediately. */
-  transition: opacity 1s ease;
-}
-
-.space-background[data-nebula-state="ready"] .space-background__nebula-ready { opacity: 1; }
-
-.space-background__nebula-art {
-  background-image: var(--nebula-image, none);
-  background-position: center;
-  background-size: cover;
-  transform: scale(1.04);
-}
-
-.space-background--journey .space-background__nebula-art {
-  animation: nebula-atmosphere-drift 160s ease-in-out infinite alternate;
-}
-
 .space-background--journey.space-background--image .space-background__stars {
   z-index: 3;
   display: block;
@@ -2322,13 +2282,7 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 
 .space-background[data-atmosphere-paused] .space-background__image,
 .space-background[data-atmosphere-paused] .space-background__atmosphere::before,
-.space-background[data-atmosphere-paused] .space-background__nebula-art,
 .space-background[data-atmosphere-paused] .space-background__stars { animation-play-state: paused; }
-
-@keyframes nebula-atmosphere-drift {
-  from { transform: translate3d(-.25%, .15%, 0) scale(1.035); }
-  to { transform: translate3d(.25%, -.15%, 0) scale(1.055); }
-}
 
 @keyframes environment-stars-far {
   from { transform: translate3d(var(--environment-far-x, 0px), 0, 0); }
@@ -2341,6 +2295,28 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
 }
 
 @media (max-width: 1023px), (prefers-reduced-motion: reduce) {
-  .space-background--journey .space-background__nebula { display: none; }
-  .space-background--journey .space-background__nebula-art { animation: none; }
+}
+
+/* Oversized moving region planes overlap without exposing rectangular edges. */
+.space-background__regions { display: none; position: absolute; inset: 0; z-index: 2; overflow: hidden; }
+.space-background--journey .space-background__regions { display: block; }
+.space-background__region {
+  position: absolute; inset: -28%; background-size: cover; background-repeat: no-repeat;
+  opacity: 0; transform: translate3d(var(--region-x, 0px), 0, 0);
+  animation: region-atmosphere 150s ease-in-out infinite alternate;
+  mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
+}
+.space-background__reading-scrim { display: none; }
+.space-background--journey .space-background__reading-scrim {
+  display: block; position: absolute; inset: 0; z-index: 4;
+  background: linear-gradient(90deg, rgb(5 7 10 / var(--region-contrast, .4)), transparent 78%);
+}
+.space-background[data-atmosphere-paused] .space-background__region { animation-play-state: paused; }
+@keyframes region-atmosphere {
+  from { transform: translate3d(var(--region-x, 0px), calc(-1 * var(--drift)), 0); }
+  to { transform: translate3d(calc(var(--region-x, 0px) + var(--drift)), var(--drift), 0); }
+}
+@media (max-width: 1023px), (prefers-reduced-motion: reduce) {
+  .space-background--journey .space-background__regions, .space-background--journey .space-background__reading-scrim { display: none; }
+  .space-background__region { animation: none; }
 }

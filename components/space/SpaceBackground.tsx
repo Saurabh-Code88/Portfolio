@@ -4,8 +4,9 @@ import dynamic from "next/dynamic";
 import { useScroll } from "framer-motion";
 import { Component, type ReactNode, useEffect, useRef, useState } from "react";
 import { BACKGROUND_SOURCE, ENABLE_3D_SHIP, LOW_POWER_CORE_THRESHOLD } from "@/lib/ship.config";
+import { flightProgressStore } from "@/lib/flightPath";
 import { journeyRevealPosition } from "@/lib/horizontalJourney";
-import { BACKGROUND_JOURNEY, backgroundBlend, canUseBackgroundJourney } from "@/lib/backgroundJourney";
+import { ENVIRONMENTS, environmentComposition, canUseBackgroundJourney } from "@/lib/backgroundJourney";
 
 const SpaceBackgroundCanvas = dynamic(() => import("@/components/space/SpaceBackgroundCanvas"), {
   ssr: false,
@@ -140,53 +141,61 @@ function EnabledSpaceBackground() {
     const connection = (navigator as Navigator & { connection?: EventTarget & { saveData?: boolean } }).connection;
     const lowPower = typeof navigator.hardwareConcurrency === "number"
       && navigator.hardwareConcurrency <= LOW_POWER_CORE_THRESHOLD;
-    let image: HTMLImageElement | null = null;
-    let status: "idle" | "loading" | "ready" | "error" = "idle";
+    const images: HTMLImageElement[] = [];
+    const ready = ENVIRONMENTS.map(() => false);
+    const requested = new Set<number>();
     let disposed = false;
-
+    const layers = Array.from(background.querySelectorAll<HTMLElement>("[data-environment]"));
+    const load = (index: number) => {
+      if (index < 0 || index >= ENVIRONMENTS.length || requested.has(index)) return;
+      requested.add(index);
+      const image = new Image();
+      images.push(image);
+      image.decoding = "async";
+      image.onload = async () => {
+        try {
+          await image.decode();
+          if (disposed) return;
+          layers[index].style.backgroundImage = `url("${image.src}")`;
+          ready[index] = true;
+          sync();
+        } catch { /* Persistent Home artwork remains below the decoded layers. */ }
+      };
+      image.onerror = () => { layers[index].dataset.load = "error"; };
+      image.src = `/backgrounds/${ENVIRONMENTS[index].asset}.webp`;
+    };
     const sync = () => {
+      if (disposed) return;
       const journey = journeyRevealPosition.getSnapshot();
       const enabled = canUseBackgroundJourney(Boolean(journey), window.innerWidth, motion.matches,
         data.matches || Boolean(connection?.saveData), lowPower, BACKGROUND_SOURCE === "image");
       background.classList.toggle("space-background--desktop-journey", Boolean(journey) && window.innerWidth >= 1024 && !motion.matches);
       background.classList.toggle("space-background--journey", enabled);
       background.toggleAttribute("data-atmosphere-paused", document.hidden);
-      if (!enabled || !journey) {
-        background.style.setProperty("--environment-blend", "0");
-        return;
+      if (!enabled || !journey) return;
+      const current = Math.max(0, journey.panels.findLastIndex(p => p.offset <= journey.x));
+      const target = ENVIRONMENTS.findIndex(e => e.sectionId === flightProgressStore.getSnapshot().targetSectionId);
+      // Destination first on distant HUD flights; then neighbors of the visible region.
+      if (target >= 0) { load(target); load(target - 1); load(target + 1); }
+      load(current); load(current + 1); load(current - 1);
+      const weights = environmentComposition(journey.x, journey.panels, ready);
+      let remaining = 1;
+      for (let i = layers.length - 1; i >= 0; i--) {
+        layers[i].style.opacity = String(remaining > 0 ? weights[i] / remaining : 0);
+        remaining = Math.max(0, remaining - weights[i]);
+        const env = ENVIRONMENTS[i];
+        const distance = (journey.panels[i]?.offset ?? 0) - journey.x;
+        const shift = Math.max(-1, Math.min(1, distance / journey.width)) * journey.width * (env.travelDistance + env.parallax);
+        layers[i].style.setProperty("--region-x", `${shift}px`);
       }
-      const hero = journey.panels.find(({ id }) => id === "hero");
-      const departure = journey.panels.find(({ id }) => id === "toolkit");
-      if (!hero || !departure) return;
-      const blend = backgroundBlend(journey.x, hero.offset, departure.offset);
-      const total = Math.max(1, (journey.panels.at(-1)?.offset ?? journey.width) - hero.offset);
-      const progress = Math.max(0, Math.min(1, (journey.x - hero.offset) / total));
-      background.style.setProperty("--environment-blend", String(blend));
-      background.style.setProperty("--environment-x", `${-progress * journey.width * BACKGROUND_JOURNEY.parallaxFraction}px`);
-      background.style.setProperty("--environment-far-x", `${-progress * journey.width * 0.006}px`);
-      background.style.setProperty("--environment-near-x", `${-progress * journey.width * 0.012}px`);
-      if (status !== "idle") return;
-      status = "loading";
-      background.dataset.nebulaState = status;
-      image = new Image();
-      image.decoding = "async";
-      image.onload = async () => {
-        try {
-          await image!.decode();
-          if (disposed) return;
-          status = "ready";
-          background.style.setProperty("--nebula-image", `url("${BACKGROUND_JOURNEY.nebulaUrl}")`);
-          background.dataset.nebulaState = status;
-        } catch {
-          if (!disposed) { status = "error"; background.dataset.nebulaState = status; }
-        }
-      };
-      image.onerror = () => {
-        if (!disposed) { status = "error"; background.dataset.nebulaState = status; }
-      };
-      image.src = BACKGROUND_JOURNEY.nebulaUrl;
+      const contrast = weights.reduce((sum, w, i) => sum + w * ENVIRONMENTS[i].contrast, 0);
+      background.style.setProperty("--region-contrast", String(contrast));
+      background.style.setProperty("--environment-blend", "1");
+      background.style.setProperty("--environment-far-x", `${-journey.x * .006}px`);
+      background.style.setProperty("--environment-near-x", `${-journey.x * .025}px`);
     };
     const unsubscribe = journeyRevealPosition.subscribe(sync);
+    const unsubscribeFlight = flightProgressStore.subscribe(sync);
     motion.addEventListener("change", sync);
     data.addEventListener("change", sync);
     connection?.addEventListener("change", sync);
@@ -195,23 +204,27 @@ function EnabledSpaceBackground() {
     return () => {
       disposed = true;
       unsubscribe();
+      unsubscribeFlight();
       motion.removeEventListener("change", sync);
       data.removeEventListener("change", sync);
       connection?.removeEventListener("change", sync);
       document.removeEventListener("visibilitychange", sync);
-      if (image) { image.onload = null; image.onerror = null; }
+      images.forEach(image => { image.onload = null; image.onerror = null; });
     };
   }, []);
 
   const handleFailure = () => setMode("fallback");
   return (
     <>
-      {BACKGROUND_SOURCE === "image" && <link rel="preload" as="image" href="/backgrounds/planetary-sunrise-desktop.webp" media="(min-width: 1024px)" fetchPriority="high" />}
+      {BACKGROUND_SOURCE === "image" && <link rel="preload" as="image" href="/backgrounds/planetary-sunrise.webp" media="(min-width: 1024px)" fetchPriority="high" />}
       <div ref={backgroundRef} className={`space-background space-background--fallback space-background--${BACKGROUND_SOURCE}`} aria-hidden="true">
         <div className="space-background__image" />
-        <div className="space-background__nebula">
-          <div className="space-background__nebula-ready"><div className="space-background__nebula-art" /></div>
+        <div className="space-background__regions">
+          {ENVIRONMENTS.map(env => <div key={env.sectionId} data-environment={env.sectionId}
+            className="space-background__region" style={{ backgroundPosition: env.focalPoint,
+              "--drift": `${env.drift}%` } as React.CSSProperties} />)}
         </div>
+        <div className="space-background__reading-scrim" />
         <div className="space-background__atmosphere" />
         <div className="space-background__stars space-background__stars--far" />
         <div className="space-background__stars space-background__stars--near" />

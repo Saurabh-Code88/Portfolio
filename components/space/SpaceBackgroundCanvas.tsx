@@ -1,4 +1,5 @@
 "use client";
+import { stationDeparture } from "@/lib/backgroundJourney";
 
 import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -67,7 +68,6 @@ import {
   STATION_POSITION,
   STATION_YAW_DRIFT,
   STATION_JOURNEY_SPIN,
-  STATION_SIDE_WIDTH,
 } from "@/lib/station.config";
 import {
   MODEL_DRAG_SENSITIVITY,
@@ -289,7 +289,6 @@ function FlightShip({
   const dockedPosition = useMemo(() => new Vector3(), []);
   const stationPosition = useMemo(() => new Vector3(), []);
   const heroDockPosition = useMemo(() => new Vector3(), []);
-  const sideDockPosition = useMemo(() => new Vector3(), []);
   const screenRotation = useMemo(() => new Quaternion(), []);
   const screenAxis = useMemo(() => new Vector3(0, 0, 1), []);
   const dockLocal = useMemo(() => new Vector3(), []);
@@ -791,18 +790,14 @@ function FlightShip({
     stationPosition.set(stationX, stationY, stationPreset.position[2]);
     heroDockPosition.copy(stationPosition).add(dockOffset);
     heroDockPosition.y += dockedHoverOffset;
-    if (journey && state.camera instanceof PerspectiveCamera) {
-      const journeyProgress = sharedProgress;
-      const sideBlend = smoothstep(journeyProgress / Math.max(.001, journey.stops[1] * .65));
-      const sideWidth = 2 * PARK_DEPTH * Math.tan(state.camera.fov * Math.PI / 360) * state.camera.aspect * STATION_SIDE_WIDTH;
-      stationWorldScale = MathUtils.lerp(stationWorldScale, sideWidth / STATION_DIAMETER, sideBlend);
-      dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
-      screenToWorld(state.camera, PARK_X * state.size.width, .82 * state.size.height, PARK_DEPTH,
-        state.size.width, state.size.height, sideDockPosition);
-      stationPosition.lerp(sideDockPosition, sideBlend);
+    const departure = journey ? stationDeparture(sharedProgress, 0, journey.stops[1]) : 0;
+    if (journey) {
+      stationPosition.x -= departure * frustumWidth * 1.4;
+      stationPosition.z -= departure * 8;
+      stationWorldScale *= 1 - departure * .7;
     }
     if (stationGroup.current) {
-      stationGroup.current.visible = true;
+      stationGroup.current.visible = departure < 1;
       stationGroup.current.position.copy(stationPosition);
       stationGroup.current.rotation.copy(stationEuler);
       stationGroup.current.scale.setScalar(stationWorldScale);
