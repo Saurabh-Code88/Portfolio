@@ -1,5 +1,15 @@
 /** Mutable measurements, not another timeline or per-frame React state source. */
 export const cinematicDiagnostics = {
+  inspectIdleAngle: null as number | null,
+  lightingEnabled: true,
+  drawCalls: 0,
+  triangles: 0,
+  restingAnchor: "dock",
+  baseQuaternion: "",
+  idleAngle: 0,
+  idleWeight: 0,
+  projectedSize: 0,
+  flightProfile: "docked",
   progress: 0,
   targetTime: 0,
   decodedTime: 0,

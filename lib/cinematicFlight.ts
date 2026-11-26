@@ -1,9 +1,10 @@
-import { CubicBezierCurve3, Euler, Matrix4, Quaternion, Vector3 } from "three";
 import {
-  CINEMATIC_ANCHORS,
-  clamp01,
-  easeCinematic,
-} from "./cinematicTimeline.ts";
+  DESTINATION_STAGES,
+  restingPose,
+  stageWorldPoint,
+} from "./shipStaging.ts";
+import { CubicBezierCurve3, Matrix4, Quaternion, Vector3 } from "three";
+import { clamp01, easeCinematic } from "./cinematicTimeline.ts";
 export type CinematicPose = {
   position: Vector3;
   quaternion: Quaternion;
@@ -35,19 +36,26 @@ export function createCinematicSegment(
   const matrix = new Matrix4(),
     tangent = new Vector3(),
     roll = new Quaternion();
-  const before = new Vector3(), after = new Vector3();
+  const before = new Vector3(),
+    after = new Vector3();
   const times = [0, 0.2, 0.48, 0.76, 1];
   const keys = times.map((t, i) => {
     if (i === 0) return from.quaternion.clone();
     if (i === times.length - 1) return to.quaternion.clone();
     curve.getTangent(easeCinematic(t), tangent);
-    curve.getTangent(Math.max(0, easeCinematic(t) - .025), before);
-    curve.getTangent(Math.min(1, easeCinematic(t) + .025), after);
-    const curvature = Math.max(-1, Math.min(1, before.cross(after).dot(up) * 3));
+    curve.getTangent(Math.max(0, easeCinematic(t) - 0.025), before);
+    curve.getTangent(Math.min(1, easeCinematic(t) + 0.025), after);
+    const curvature = Math.max(
+      -1,
+      Math.min(1, before.cross(after).dot(up) * 3),
+    );
     return new Quaternion()
       .setFromRotationMatrix(matrix.lookAt(tangent, origin, up))
       .multiply(
-        roll.setFromAxisAngle(forward, (bank * .5 + curvature * .2) * Math.sin(Math.PI * t) ** 2),
+        roll.setFromAxisAngle(
+          forward,
+          (bank * 0.5 + curvature * 0.2) * Math.sin(Math.PI * t) ** 2,
+        ),
       );
   });
   // Sequential quaternion keyframes avoid hemisphere flips from re-blending a changing look direction.
@@ -93,58 +101,22 @@ export function createCinematicFlight(
   fov: number,
   home: CinematicPose,
 ) {
-  const half = Math.tan((fov * Math.PI) / 360);
-  const point = (x: number, y: number, depth: number) =>
-    new Vector3(
-      (x * 2 - 1) * depth * half * aspect,
-      (1 - y * 2) * depth * half,
-      8 - depth,
-    );
-  const anchors = CINEMATIC_ANCHORS.map((a, i) =>
+  const anchors = DESTINATION_STAGES.map((_, i) =>
     i === 0
       ? {
           position: home.position.clone(),
           quaternion: home.quaternion.clone(),
           scale: home.scale,
         }
-      : {
-          position: point(a.x, a.y, a.depth),
-          quaternion: new Quaternion().setFromEuler(
-            new Euler(-0.28, 0.58 + (i % 2) * 0.18, a.bank * 0.4),
-          ),
-          scale: 0.78,
-        },
+      : restingPose(i, aspect, fov),
   );
-  // Distinct climb, dive, sweeping arc, deep flyby and diagonal glide controls.
-  const controls = [
-    [
-      [0.83, 0.23, 14],
-      [0.91, 0.18, 16],
-    ],
-    [
-      [0.91, 0.25, 22],
-      [0.84, 0.18, 18],
-    ],
-    [
-      [0.77, 0.12, 19],
-      [0.94, 0.28, 15],
-    ],
-    [
-      [0.94, 0.25, 26],
-      [0.87, 0.2, 6.8],
-    ],
-    [
-      [0.94, 0.29, 12],
-      [0.84, 0.15, 15],
-    ],
-  ];
-  const segments = controls.map((pair, i) =>
+  const segments = DESTINATION_STAGES.slice(1).map((stage, i) =>
     createCinematicSegment(
       anchors[i],
       anchors[i + 1],
-      point(...(pair[0] as [number, number, number])),
-      point(...(pair[1] as [number, number, number])),
-      CINEMATIC_ANCHORS[i + 1].bank,
+      stageWorldPoint(DESTINATION_STAGES[i].departure, aspect, fov),
+      stageWorldPoint(stage.entry, aspect, fov),
+      stage.bank,
     ),
   );
   return { anchors, segments };
@@ -158,15 +130,21 @@ export function sampleCinematicFlight(
   const i = Math.min(path.segments.length - 1, Math.floor(c));
   return sampleCinematicSegment(path.segments[i], c - i, out);
 }
-export function createCinematicTransit(from: CinematicPose, to: CinematicPose) {
+export function createCinematicTransit(
+  from: CinematicPose,
+  to: CinematicPose,
+  entry?: Vector3,
+  bank = 0.15,
+) {
   const a = from.position.clone().lerp(to.position, 0.3),
     b = from.position.clone().lerp(to.position, 0.76);
   const depth = Math.min(from.position.z, to.position.z) - 5;
   a.z = depth;
   b.z = depth;
+  if (entry) b.copy(entry);
   a.y += 0.7;
   b.y += 0.25;
-  return createCinematicSegment(from, to, a, b, 0.15);
+  return createCinematicSegment(from, to, a, b, bank);
 }
 /** Progress-based handoff holds on interruption; no timed catch-up while stationary. */
 export function blendCinematicHandoff(

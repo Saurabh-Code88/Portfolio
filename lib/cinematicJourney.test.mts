@@ -17,6 +17,117 @@ import {
   blendCinematicHandoff,
 } from "./cinematicFlight.ts";
 import { LatestVideoSeek, clampSeekTime } from "./videoScrub.ts";
+import {
+  DESTINATION_STAGES,
+  restingPose,
+  stageWorldPoint,
+  createShipIdle,
+  applyShipIdle,
+} from "./shipStaging.ts";
+
+test("destination stages project into reserved viewports and preserve intended nose direction", () => {
+  for (const width of [1024, 1280, 1440, 1920])
+    for (let i = 1; i < 6; i++) {
+      const stage = DESTINATION_STAGES[i],
+        pose = restingPose(i, width / 800, 48);
+      const depth = 8 - pose.position.z,
+        half = depth * Math.tan((48 * Math.PI) / 360);
+      assert.ok(
+        Math.abs(
+          (pose.position.x / ((half * width) / 800) + 1) / 2 - stage.anchor[0],
+        ) < 1e-10,
+      );
+      assert.ok(
+        Math.abs((1 - pose.position.y / half) / 2 - stage.anchor[1]) < 1e-10,
+      );
+      const nose = new Vector3(0, 0, 1).applyQuaternion(pose.quaternion);
+      assert.ok(nose.dot(new Vector3(...stage.nose).normalize()) > 0.999999);
+      assert.ok(pose.scale >= 0.93 && pose.scale <= 0.98);
+      assert.ok(
+        stage.anchor[0] > 0.1 &&
+          stage.anchor[0] < 0.9 &&
+          stage.anchor[1] < 0.85,
+      );
+      assert.ok(
+        stage.content[0] < stage.content[2] &&
+          stage.content[1] < stage.content[3],
+      );
+      assert.ok(
+        stageWorldPoint(stage.entry, width / 800, 48).z < pose.position.z ||
+          i === 4,
+      );
+      // Conservative decoded-asset hull bounds, including all axial orientations and levitation.
+      for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+        const q = pose.quaternion
+          .clone()
+          .multiply(
+            new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), angle),
+          );
+        for (const x of [-0.26, 0.26])
+          for (const y of [-0.21, 0.21])
+            for (const z of [-1.01, 1.01]) {
+              const p = new Vector3(x, y, z)
+                .multiplyScalar(pose.scale)
+                .applyQuaternion(q)
+                .add(pose.position);
+              const h = (8 - p.z) * Math.tan((48 * Math.PI) / 360);
+              const sx = (p.x / ((h * width) / 800) + 1) / 2,
+                sy = (1 - p.y / h) / 2;
+              assert.ok(
+                sx > 0.025 && sx < 0.975 && sy > 0.12 && sy < 0.92,
+                "rotating hull must clear viewport/HUD",
+              );
+            }
+      }
+    }
+});
+test("approach headings agree with each destination's resting nose", () => {
+  for (const stage of DESTINATION_STAGES.slice(1)) {
+    const dx = stage.anchor[0] - stage.entry[0],
+      dy = stage.entry[1] - stage.anchor[1];
+    const alignment =
+      (dx * stage.nose[0] + dy * stage.nose[1]) /
+      (Math.hypot(dx, dy) * Math.hypot(stage.nose[0], stage.nose[1]));
+    assert.ok(
+      alignment > 0.7,
+      stage.id + " should arrive along its intended screen heading",
+    );
+  }
+});
+test("idle composes local axial rotation, fades in, excludes Home and holds no travel clock", () => {
+  const state = createShipIdle(),
+    rotation = new Quaternion();
+  const base = restingPose(1, 1.6, 48),
+    pose = createCinematicPose();
+  const previous = base.quaternion.clone();
+  for (let frame = 0; frame < 2400; frame++) {
+    pose.position.copy(base.position);
+    pose.quaternion.copy(base.quaternion);
+    pose.scale = base.scale;
+    applyShipIdle(state, 1, 1 / 60, pose, rotation);
+    assert.ok(
+      Math.abs(pose.position.y - base.position.y) <=
+        DESTINATION_STAGES[1].levitation + 1e-12,
+    );
+    assert.ok(pose.quaternion.angleTo(previous) < 0.01);
+    assert.ok(
+      new Vector3(0, 0, 1)
+        .applyQuaternion(pose.quaternion)
+        .distanceTo(new Vector3(0, 0, 1).applyQuaternion(base.quaternion)) <
+        1e-6,
+    );
+    previous.copy(pose.quaternion);
+  }
+  // Departure must accept the exact displayed quaternion, including arbitrary idle roll.
+  const transit = createCinematicTransit(pose, restingPose(2, 1.6, 48)),
+    out = createCinematicPose();
+  sampleCinematicSegment(transit, 0, out);
+  assert.ok(out.quaternion.angleTo(pose.quaternion) < 1e-6);
+  applyShipIdle(state, -1, 1 / 60, pose, rotation);
+  assert.equal(state.weight, 0);
+  applyShipIdle(state, 0, 1 / 60, pose, rotation);
+  assert.equal(state.angle, 0);
+});
 const panels = CINEMATIC_ANCHORS.map((a, i) => ({
   id: a.id,
   offset: [0, 1100, 2500, 3600, 5000, 6500][i],
@@ -152,8 +263,8 @@ test("long-distance transit, rapid retarget and manual handoff preserve the visi
   assert.equal(cinematicTransitProgress(0.1, 0.8, 0.1), 1);
 });
 
-test("HUD arrival releases ownership despite native scroll rounding",()=>{
-  assert.equal(cinematicTransitArrived(.40001,.4,6400),true);
-  assert.equal(cinematicTransitArrived(.4002,.4,6400),false);
-  assert.equal(cinematicTransitArrived(1,1,6400),true);
+test("HUD arrival releases ownership despite native scroll rounding", () => {
+  assert.equal(cinematicTransitArrived(0.40001, 0.4, 6400), true);
+  assert.equal(cinematicTransitArrived(0.4002, 0.4, 6400), false);
+  assert.equal(cinematicTransitArrived(1, 1, 6400), true);
 });

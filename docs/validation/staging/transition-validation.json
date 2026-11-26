@@ -1,0 +1,58 @@
+{
+  "recordedFrames": 27,
+  "seconds": 8.573409080505371,
+  "bytes": 174968,
+  "midFlightHold": [
+    {
+      "x": "0.9374685730908108",
+      "y": "0.15034940300125213",
+      "z": "-9.449348154443415",
+      "idleAngle": "0",
+      "idleWeight": "0",
+      "fps": "1.1232708746424096",
+      "drawCalls": "1",
+      "triangles": "1",
+      "profile": "receding broad sweep",
+      "size": "100.91453360637432",
+      "progress": "0.5000256818532025",
+      "station": "false",
+      "destination": "research"
+    },
+    {
+      "x": "0.9374685730908108",
+      "y": "0.15034940300125213",
+      "z": "-9.449348154443415",
+      "idleAngle": "0",
+      "idleWeight": "0",
+      "fps": "1.132190897487284",
+      "drawCalls": "1",
+      "triangles": "1",
+      "profile": "receding broad sweep",
+      "size": "100.91453360637432",
+      "progress": "0.5000256818532025",
+      "station": "false",
+      "destination": "research"
+    }
+  ],
+  "arbitraryIdleDeparture": {
+    "x": "-4.6503245724141875",
+    "y": "-0.05268661337294433",
+    "z": "-1.6000000004032129",
+    "idleAngle": "2.1436332312998583",
+    "idleWeight": "1",
+    "fps": "1.2097222860760959",
+    "drawCalls": "1",
+    "triangles": "1",
+    "profile": "diagonal depth climb",
+    "size": "183.42633652780685",
+    "progress": "0.400020545482562",
+    "station": "false",
+    "destination": "projects"
+  },
+  "nestedProjectScroll": {
+    "top": 482,
+    "height": 598,
+    "content": 1080
+  },
+  "contactFocus": "passed"
+}

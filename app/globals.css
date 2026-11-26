@@ -2262,6 +2262,34 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   }
 }
 
+/* Destination staging reserves space only when the existing desktop canvas/journey is active. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  body.space-canvas-active .horizontal-journey--active {
+    :is(#toolkit, #experience) {
+      align-self: flex-start;
+      margin-top: 108px;
+      max-height: calc(66svh - 108px);
+      width: 90%;
+      padding-block: 20px;
+    }
+    :is(#projects, #contact) {
+      width: 63%;
+      margin-left: 31%;
+      margin-right: 6%;
+      max-height: calc(100svh - 200px);
+    }
+    #research {
+      width: 62%;
+      margin-left: 5%;
+      margin-right: 33%;
+      max-height: calc(100svh - 200px);
+    }
+    #contact .section-heading { align-items: start; flex-direction: column; }
+    #contact { background: rgb(5 7 10 / 80%); }
+    #contact .contact-links { flex-wrap: wrap; }
+  }
+}
+
 /* One persistent paused decoder; measured journey progress drives time and restrained parallax. */
 .space-background__video { display: none; pointer-events: none; }
 .space-background--journey .space-background__video {

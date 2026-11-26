@@ -63,9 +63,10 @@ Mobile/tablet/reduced-motion/data/power modes never attach a video source.
 ## Real 3D flight and interruption
 `lib/cinematicFlight.ts` constructs reusable cubic Bezier geometry on layout changes, not
 per frame. Home uses the measured original docking transform. Other resting anchors are
-projected into the safe right margin at world-space depths 7.8-10 units from the camera.
-Climb, depth dive, broad sweep, deep flyby and diagonal-glide control points extend through
-actual Z depths up to 26 camera units. Scale stays .78 beyond undocking: depth comes from
+resolved from `lib/shipStaging.ts` into alternating bottom, left and right staging at
+world-space depths 7.8-10 units from the camera.
+Undock/bank, depth climb, broad sweep, descending flyby and rising-glide controls extend
+through camera-depth controls up to 24 units. Resting scale is .98 (.931 in the dense 1024px composition), blended per leg: depth comes from
 perspective and world-space translation, not scale-only simulation or animated camera zoom.
 
 The model's +Z nose follows sampled path tangents; ordered quaternion keys avoid Euler and
@@ -84,16 +85,130 @@ scale on return. Station drag and reversible DPR degradation/recovery remain unc
 `SectionRevealController` remains the only reveal controller. Its existing arrival-distance
 mapping now begins revealing during the approach, preserving completed/focused content,
 visit floors, nested scrolling and layouts. Cockpit telemetry still consumes the existing store;
-its desktop phase is now sampled from the same visible progress. No content or HUD layout changed.
+its desktop phase is now sampled from the same visible progress. Content copy and HUD layout
+are unchanged; the staging reservations below adjust desktop section bounds.
 
 ## Development diagnostics
 `/dev/flight` renders the same horizontal homepage plus controls only in development; it
 returns notFound in production. Its slider inspects measured progress and its buttons reuse
 existing navigation ownership. Mutable diagnostics are displayed at 5Hz, not every frame:
 progress, target/decoded timestamps, seek lag/latency, seek/coalescing counts, XYZ, camera
-distance, phase, destination, station visibility and a scene-frame FPS estimate.
+distance, phase, destination, station visibility and a scene-frame FPS estimate. Staging adds
+base quaternion, normalized resting anchor, idle angle/weight, projected hull-length estimate,
+profile, draw calls and triangles; controls inspect axial angles and compare lighting.
 
-## Measurements and validation
+## Dynamic destination staging and idle animation
+The current staging task supersedes the previous upper-right parking arrangement. Typed
+`DESTINATION_STAGES` uses the repository section IDs and centralizes normalized anchors,
+camera depth, per-destination size, nose direction, bank, entry/departure controls, idle
+periods and content-safe rectangles. World poses resolve through the existing FOV48 camera.
+This configuration is authoritative for ship staging; the protected cinematic timeline retains
+its video moments unchanged, and its historical pose fields are no longer sampled.
+Home still uses the original measured dock transform and scale, with no floating idle.
+
+| Destination | Resting composition | Entry profile |
+|---|---|---|
+| Toolkit | Bottom center; horizontal, nose right; three-quarter hull | Undock, recede and bank |
+| Projects | Left; vertical, nose up | Diagonal depth climb |
+| Research | Right; vertical/diagonal, visible depth | Receding broad sweep |
+| Experience | Bottom center; horizontal, nose left | Descending depth flyby |
+| Contact | Left; near-vertical diagonal | Calm rising glide |
+
+Non-Home model scale .98 is 25.6% above the previous .78 at the same resting depth.
+The dense aspect-ratio variant uses .931 (19.4% increase) to preserve viewport margins.
+These are model-scale increases; changed orientation also affects projected size. The
+projected hull-length estimate spans roughly 176-226px at 1280x800 before foreshortening.
+Depth still changes in world space; there is no global scene scaling or camera zoom.
+Desktop CSS reserves the lower viewport for Toolkit/Experience and opposite-side content
+space for Projects/Research/Contact. Existing nested scroll regions retain all content;
+these layout rules require the active canvas, desktop journey and normal motion. Contact
+uses an 80% local dark panel to protect muted text against the final bright star.
+
+The asset audit decoded EXT_meshopt_compression POSITION data: Z is the longitudinal axis,
+with a narrow +Z end (end-slice XY extents .2065/.2184) and wider -Z end (.4912/.2919).
+This agrees with forwardSign=1, the runtime +Z nose bound, and both engine nozzles at Z=-.78.
+No asset geometry, textures, materials, exposure or tone mapping were modified.
+
+The existing FlightShip frame callback owns final composition. Idle starts only within
+1.1 measured horizontal pixels of a non-Home destination, after navigation/handoff ends.
+A 1.2s smooth arrival envelope introduces a .03-.035 world-unit vertical sinusoid with
+5.6-6.6s periods and a 32-40s full local +Z revolution. Quaternion composition is
+base resting orientation * local axial rotation; the main nose direction remains stable.
+Mid-flight stops retain the deterministic pose and never start idle. Video remains paused.
+Manual departure captures the exact displayed idle transform and blends it into the base
+path across the existing progress handoff span. Return to a stop resolves any remaining
+handoff over .8s before idle begins. HUD transit/retarget starts from the displayed pose,
+including arbitrary axial roll, and uses the destination's configured approach control.
+
+Lighting uses the existing BackgroundScene frame callback: the original warm key moves
+forward and softens to warm white; the original ambient fill rises from .24 to .64; one
+subdued blue-white directional rim reaches 2.4. The existing rear point fades out rather
+than adding point lights. The blend follows the first .3 section coordinate and restores
+original key/fill/point values exactly at Home and outside desktop journey mode. The rim
+is invisible there. Station lighting may change subtly while departing; its original Home
+appearance is preserved. No shadow maps, bloom pass, renderer, animation loop or dependency
+was added. Existing engine glow, materials and environment reflection remain intact.
+
+### Staging validation (2026-11-27)
+- Final lint, typecheck, 33 tests and production build each exited 0.
+- The native desktop matrix completed all 24 destination checks at 1024/1280/1440/1920px.
+  Its initial run then timed out compiling the root route for fallbacks. A competing Portfolio
+  dev server was stopped; the targeted checks rerun exited 0. Both facts are retained in
+  `validation.json` rather than labeling the initial full invocation a success.
+- Verified rendered angles: .0436, 1.6144, 3.1852, 4.7560, 6.3268 radians for requested
+  0/quarter/half/three-quarter/full turns. Close-ups were inspected: hull detail and main
+  upward direction remain readable through the revolution. Zero-angle inspection required
+  a real range value change; the harness now uses trusted keyboard input and rendered-state
+  waits, not fixed delays or synthetic unchanged-value events.
+- Video held exactly at 7.596387s during settled idle. Mid-flight XYZ drift was zero over
+  the hold check, with idle weight 0. Arbitrary-angle departure began at 2.14363 radians.
+- HUD retarget/wheel interruption, Home redocking, station absence, canvas off, 768/375px
+  and reduced motion passed. Nested Projects scrolled 482px through 1080px content in a
+  598px viewport; Contact links received focus without interception.
+- CDP recorded 27 observed frames spanning 8.5734s into a 174,968-byte WebM. Original frame
+  timestamps determine playback holds; it is a software capture, not a smoothness demo.
+
+| Development software comparison | Staged lighting | Original lighting |
+|---|---:|---:|
+| Median rAF interval | 850.0ms | 816.7ms |
+| p95 rAF interval | 966.7ms | 833.3ms |
+| Scene FPS estimate | 1.08 | 1.14 |
+
+These short 2.5s samples are sparse and dominated by software rendering: approximately
+4% median difference does not certify a physical GPU regression budget. Renderer counters
+shown in diagnostics are the last composer pass (one fullscreen draw), not total scene draw
+calls. No geometry, renderer, shadow map, extra postprocessing or animation loop was added.
+Idle delta is capped at .25s to avoid suspension jumps, so severe software stalls also slow
+its nominal periods. Physical GPU frame pacing, full-journey visual banking and station
+interaction/DPR recovery remain owner hardware checks. Existing video seek latency is
+unchanged and remains a separate known limitation.
+
+Evidence: [all destination and rotation captures](./validation/staging/),
+[browser checks](./validation/staging/validation.json),
+[transition/hold checks](./validation/staging/transition-validation.json),
+[transition recording](./validation/staging/transitions.webm).
+[Production smoke](./validation/staging/production-smoke.json) exited 0: homepage HTTP200,
+/dev/flight HTTP404, active canvas, WebGL error 0, no page/console errors, and Toolkit video
+held exactly at 3.398583s during ship idle. Confirmed renderer: ANGLE Vulkan SwiftShader.
+The four observed production rAF intervals had median 866.6ms and p95 933.3ms. This is
+severely limited software rendering, not evidence of hardware smoothness. The development
+lighting toggle samples also include live idle motion and potential shader warm-up, so the
+4% difference is observational rather than an isolated GPU lighting benchmark. Resting hull
+captures, full-angle close-ups and the final Contact contrast adjustment were inspected.
+No push, merge or deployment was performed.
+
+
+Changed implementation files: `lib/shipStaging.ts` (typed staging/idle helpers),
+`lib/cinematicFlight.ts` (profile geometry/approaches),
+`components/space/SpaceBackgroundCanvas.tsx` (existing transform and lighting owners),
+`app/globals.css` (desktop reservations/Contact contrast), `lib/cinematicDiagnostics.ts`
+and `app/dev/flight/FlightPreview.tsx` (development inspection),
+`lib/cinematicJourney.test.mts` (focused coverage), and `scripts/validate-staging.py`
+(optional Edge captures, checks and timestamped transition recording). Documentation is
+in this plan and `PROGRESS.md`; evidence lives under `docs/validation/staging/`.
+
+
+## Previous phase measurements and validation
 A local integrated-browser H.264 pass recorded 99 seeks: median 23.3ms, mean 36.4ms,
 p95 101.6ms, max 350.1ms, and zero play events. Decoded-frame lag occasionally exceeded
 half a second during coarse jumps/host stalls before catching up. Observed scene estimates
@@ -129,7 +244,8 @@ These software results show visible seek latency under load; they do not establi
 continuous scrubbing on a physical GPU. The earlier integrated-browser timing is a separate
 environment, not interchangeable with this result. Hardware frame pacing, native VP9 seek
 performance, station drag/DPR recovery and subjective full-journey banking need owner review.
-The model remains relatively dark against some nebula regions; no new lighting was added.
+That phase left the model dark against some nebula regions; the current staging task adds
+the restrained lighting described above.
 Old loop files remain unused historical assets. No push, merge or deployment was performed.
 
 Evidence: [machine-readable browser results](./validation/cinematic-validation.json),

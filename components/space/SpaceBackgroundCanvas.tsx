@@ -1,4 +1,5 @@
 "use client";
+import { DESTINATION_STAGES, applyShipIdle, createShipIdle, stageWorldPoint } from "@/lib/shipStaging";
 import { stationDeparture } from "@/lib/backgroundJourney";
 
 import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
@@ -11,6 +12,10 @@ import {
   BufferGeometry,
   Euler,
   Group,
+  DirectionalLight,
+  AmbientLight,
+  PointLight,
+  Color,
   LineBasicMaterial,
   MathUtils,
   PerspectiveCamera,
@@ -232,6 +237,7 @@ function FlightShip({
   const camera = useThree((state) => state.camera);
   const canvasSize = useThree((state) => state.size);
   const gl = useThree((state) => state.gl);
+
   const heroCameraZ = useRef(camera.position.z);
   const shipNoseOffset = useRef(HERO_SHIP_NOSE_OFFSET);
   const [stationReady, setStationReady] = useState(false);
@@ -256,6 +262,12 @@ function FlightShip({
   } | null>(null);
   const cinematicPose = useMemo(createCinematicPose, []);
   const cinematicTarget = useMemo(createCinematicPose, []);
+  const stagingIdle = useRef(createShipIdle());
+  const idleRotation = useMemo(() => new Quaternion(), []);
+  const priorStagingProgress = useRef(0);
+  const handoffRestElapsed = useRef(0);
+
+
   const stationSpin = useRef(0);
   const hoverBlend = useRef(0);
   const tailPoint = useMemo(() => new Vector3(), []);
@@ -792,6 +804,7 @@ function FlightShip({
     heroDockPosition.copy(stationPosition).add(dockOffset);
     heroDockPosition.y += dockedHoverOffset;
     const departure = journey ? stationDeparture(sharedProgress, 0, journey.stops[1]) : 0;
+
     if (journey) {
       stationPosition.x -= departure * frustumWidth * 1.4;
       stationPosition.z -= departure * 8;
@@ -837,6 +850,16 @@ function FlightShip({
         journeyPosition.panels,
       );
       sampleCinematicFlight(path, coordinate, cinematicPose);
+      const stopIndex = Math.round(coordinate);
+      const stableStop = Math.abs(coordinate-stopIndex) * journeyPosition.width < 1.1 && !navFlight.current;
+      if (!stableStop) handoffRestElapsed.current=0;
+      if (!stableStop && stagingIdle.current.index > 0 && !navFlight.current) {
+        manualHandoff.current = {
+          progress: priorStagingProgress.current,
+          position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x,
+        };
+      }
+
       const navigation = navFlight.current;
       let transit = 1;
       if (navigation) {
@@ -852,6 +875,8 @@ function FlightShip({
                 scale: group.current.scale.x,
               },
               cinematicTarget,
+              stageWorldPoint(DESTINATION_STAGES[destination].entry,manualCamera.aspect,manualCamera.fov),
+              DESTINATION_STAGES[destination].bank,
             ),
           };
           navigation.journeyFrom = sharedProgress;
@@ -875,10 +900,9 @@ function FlightShip({
         cinematicNavigation.current = null;
         const handoff = manualHandoff.current;
         if (handoff) {
-          const weight = Math.min(
-            1,
-            Math.abs(sharedProgress - handoff.progress) /
-              MANUAL_FLIGHT_HANDOFF_SPAN,
+          if (stableStop) handoffRestElapsed.current += Math.min(delta,.25);
+          const weight = stableStop ? Math.min(1,handoffRestElapsed.current/.8) : Math.min(
+            1, Math.abs(sharedProgress-handoff.progress)/MANUAL_FLIGHT_HANDOFF_SPAN,
           );
           // Aliasing out and target is safe: each position/quaternion operation reads before writing.
           blendCinematicHandoff(handoff, cinematicPose, weight, cinematicPose);
@@ -887,6 +911,14 @@ function FlightShip({
       }
       manualNeedsHandoff.current = false;
       returnToPark.current = null;
+      const baseQuaternion = cinematicPose.quaternion;
+      if (process.env.NODE_ENV === "development") cinematicDiagnostics.baseQuaternion = baseQuaternion.toArray().map(n=>n.toFixed(3)).join(", ");
+      if (process.env.NODE_ENV === "development" && stableStop && stopIndex>0 && cinematicDiagnostics.inspectIdleAngle !== null) {
+        stagingIdle.current.index=stopIndex;
+        stagingIdle.current.elapsed=cinematicDiagnostics.inspectIdleAngle/(Math.PI*2)*DESTINATION_STAGES[stopIndex].axialPeriod;
+      }
+      applyShipIdle(stagingIdle.current, stableStop && !manualHandoff.current ? stopIndex : -1, delta, cinematicPose, idleRotation);
+      priorStagingProgress.current = sharedProgress;
       group.current.position.copy(cinematicPose.position);
       group.current.quaternion.copy(cinematicPose.quaternion);
       // Preserve the explicit hero roll button; there is no automatic spin in the journey sampler.
@@ -932,7 +964,7 @@ function FlightShip({
       if (trail.current) trail.current.visible = false;
       const destinationIndex = navigation
         ? FLIGHT_SECTION_IDS.indexOf(navigation.sectionId)
-        : Math.min(5, Math.ceil(coordinate));
+        : stableStop ? stopIndex : Math.min(5, Math.ceil(coordinate));
       const destination = FLIGHT_SECTION_IDS[destinationIndex];
       const panel = journeyPosition.panels[destinationIndex];
       publishShipFlight({
@@ -960,6 +992,14 @@ function FlightShip({
         phase: flightPhase,
         destination,
         stationVisible: departure < 1,
+        drawCalls: state.gl.info.render.calls,
+        triangles: state.gl.info.render.triangles,
+        restingAnchor: DESTINATION_STAGES[stopIndex]?.anchor.join(", ") ?? "transit",
+        idleAngle: stagingIdle.current.angle,
+        idleWeight: stagingIdle.current.weight,
+        flightProfile: DESTINATION_STAGES[destinationIndex].profile,
+        projectedSize: cinematicPose.scale / (8-cinematicPose.position.z) / Math.tan(manualCamera.fov*Math.PI/360) * state.size.height,
+
       });
       if (delta > 0)
         cinematicDiagnostics.fps +=
@@ -1309,6 +1349,12 @@ function BackgroundScene({
   onStationQualityChange: (quality: StationRenderQuality) => void;
 }) {
   const gl = useThree((state) => state.gl);
+  const stagingKey = useRef<DirectionalLight>(null);
+  const stagingFill = useRef<AmbientLight>(null);
+  const stagingRim = useRef<DirectionalLight>(null);
+  const originalPoint = useRef<PointLight>(null);
+  const originalKeyColor = useMemo(()=>new Color("#e8a045"),[]);
+  const stagedKeyColor = useMemo(()=>new Color("#fff1dc"),[]);
   const [bloomEnabled, setBloomEnabled] = useState(false);
   const loaded = useRef(false);
   const warp = useRef(0);
@@ -1350,6 +1396,19 @@ function BackgroundScene({
   }, []);
 
   useFrame((_, delta) => {
+    const journey=journeyRevealPosition.getSnapshot();
+    const coordinate=journey ? cinematicCoordinate(journey.x,journey.panels) : 0;
+    const enabled=process.env.NODE_ENV !== "development" || cinematicDiagnostics.lightingEnabled;
+    // Restore exact original lighting at Home and outside desktop journey mode.
+    const lightBlend=journey && enabled ? smoothstep(Math.min(1,coordinate/.3)) : 0;
+    if (stagingKey.current) {
+      stagingKey.current.position.set(-2+8*lightBlend,3+5*lightBlend,-4+16*lightBlend);
+      stagingKey.current.intensity=2.1+.7*lightBlend;
+      stagingKey.current.color.lerpColors(originalKeyColor,stagedKeyColor,lightBlend);
+    }
+    if (stagingFill.current) stagingFill.current.intensity=.24+.4*lightBlend;
+    if (stagingRim.current) { stagingRim.current.intensity=2.4*lightBlend; stagingRim.current.visible=lightBlend>0; }
+    if (originalPoint.current) originalPoint.current.intensity=1.25*(1-lightBlend);
     if (farStars.current) {
       farStars.current.rotation.x = MathUtils.damp(farStars.current.rotation.x, pointer.current.y * 0.012, 1.5, delta);
       farStars.current.rotation.y = MathUtils.damp(farStars.current.rotation.y, pointer.current.x * 0.012, 1.5, delta);
@@ -1362,9 +1421,10 @@ function BackgroundScene({
 
   return (
     <>
-      <ambientLight intensity={0.24} />
-      <directionalLight position={[-2, 3, -4]} intensity={2.1} color="#e8a045" />
-      <pointLight position={[3, 1.5, -4]} intensity={1.25} color="#6cb8ff" distance={14} />
+      <ambientLight ref={stagingFill} intensity={0.24} />
+      <directionalLight ref={stagingKey} position={[-2, 3, -4]} intensity={2.1} color="#e8a045" />
+      <pointLight ref={originalPoint} position={[3, 1.5, -4]} intensity={1.25} color="#6cb8ff" distance={14} />
+      <directionalLight ref={stagingRim} position={[4,6,-12]} visible={false} intensity={0} color="#b6d7ee" />
       <Environment resolution={128} background={false}>
         <Lightformer form="rect" intensity={0.7} color="#fff0d9" position={[0, 4, 1]} scale={[6, 1.4, 1]} />
         <Lightformer form="rect" intensity={1.15} color="#6cb8ff" position={[4, 1, -3]} scale={[1.2, 4, 1]} />

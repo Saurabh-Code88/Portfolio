@@ -71,7 +71,62 @@ export default function FlightPreview() {
           </button>
         ))}
       </div>
-      <output aria-live="off">
+      <label>
+        Inspect axial angle
+        <input
+          type="range"
+          min="0"
+          max="6.283185"
+          step="0.01"
+          defaultValue="0"
+          onChange={(e) => {
+            cinematicDiagnostics.inspectIdleAngle = Number(e.target.value);
+          }}
+        />
+      </label>
+      <button
+        onClick={() => {
+          cinematicDiagnostics.inspectIdleAngle = null;
+        }}
+      >
+        Resume idle rotation
+      </button>
+      <button
+        onClick={() => {
+          cinematicDiagnostics.lightingEnabled =
+            !cinematicDiagnostics.lightingEnabled;
+        }}
+      >
+        Toggle ship lighting
+      </button>
+      <output
+        aria-live="off"
+        data-x={data.x}
+        data-y={data.y}
+        data-z={data.z}
+        data-idle-angle={data.idleAngle}
+        data-idle-weight={data.idleWeight}
+        data-fps={data.fps}
+        data-draw-calls={data.drawCalls}
+        data-triangles={data.triangles}
+        data-profile={data.flightProfile}
+        data-size={data.projectedSize}
+        data-progress={data.progress}
+        data-station={data.stationVisible}
+        data-destination={data.destination}
+      >
+        <p>
+          Last-pass calls {data.drawCalls} / triangles {data.triangles}
+        </p>
+        <p>
+          Resting anchor {data.restingAnchor} / profile {data.flightProfile}
+        </p>
+        <p>Base quaternion {data.baseQuaternion}</p>
+        <p>
+          Idle angle {data.idleAngle.toFixed(3)} / blend{" "}
+          {data.idleWeight.toFixed(2)}
+        </p>
+        <p>Projected hull estimate {data.projectedSize.toFixed(1)}px</p>
         <p>
           Video target {data.targetTime.toFixed(3)}s / decoded{" "}
           {data.decodedTime.toFixed(3)}s
