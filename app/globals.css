@@ -2262,7 +2262,7 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   }
 }
 
-/* One persistent decoder; only its modest horizontal offset follows the journey. */
+/* One persistent paused decoder; measured journey progress drives time and restrained parallax. */
 .space-background__video { display: none; pointer-events: none; }
 .space-background--journey .space-background__video {
   display: block; position: absolute; z-index: 2; left: -2%; top: -2%;
@@ -2270,7 +2270,8 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   transform: translate3d(var(--video-x, 0px), 0, 0);
   transition: opacity 600ms ease;
 }
-.space-background--journey[data-video-state="playing"] .space-background__video { opacity: 1; }
+.space-background--journey[data-video-state="ready"] .space-background__video,
+.space-background--journey[data-video-state="held"] .space-background__video { opacity: 1; }
 .space-background__reading-scrim { display: none; }
 .space-background--journey .space-background__reading-scrim {
   display: block; position: absolute; inset: 0; z-index: 4; pointer-events: none;

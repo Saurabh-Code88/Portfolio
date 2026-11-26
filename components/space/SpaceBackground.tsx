@@ -5,6 +5,9 @@ import { useScroll } from "framer-motion";
 import { Component, type ReactNode, useEffect, useRef, useState } from "react";
 import { BACKGROUND_SOURCE, ENABLE_3D_SHIP, LOW_POWER_CORE_THRESHOLD } from "@/lib/ship.config";
 import { journeyRevealPosition } from "@/lib/horizontalJourney";
+import { cinematicCoordinate, cinematicVideoTime } from "@/lib/cinematicTimeline";
+import { cinematicDiagnostics } from "@/lib/cinematicDiagnostics";
+import { attachVideoScrubber } from "@/lib/videoScrub";
 import { canUseBackgroundJourney, videoParallax } from "@/lib/backgroundJourney";
 
 const SpaceBackgroundCanvas = dynamic(() => import("@/components/space/SpaceBackgroundCanvas"), {
@@ -138,30 +141,54 @@ function EnabledSpaceBackground() {
     if (!background) return;
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const data = window.matchMedia("(prefers-reduced-data: reduce)");
-    const connection = (navigator as Navigator & { connection?: EventTarget & { saveData?: boolean } }).connection;
-    const lowPower = typeof navigator.hardwareConcurrency === "number"
-      && navigator.hardwareConcurrency <= LOW_POWER_CORE_THRESHOLD;
+    const connection = (
+      navigator as Navigator & {
+        connection?: EventTarget & { saveData?: boolean };
+      }
+    ).connection;
+    const lowPower =
+      typeof navigator.hardwareConcurrency === "number" &&
+      navigator.hardwareConcurrency <= LOW_POWER_CORE_THRESHOLD;
     const video = videoRef.current;
     if (!video) return;
-    let attached = false;
-    let failed = false;
-    let wanted = false;
-    let disposed = false;
-    const mp4 = "/backgrounds/space-background-loop.mp4";
-    const webm = "/backgrounds/space-background-loop.webm";
-    const play = () => {
-      video.play().catch(() => {
-        if (disposed || !wanted || !video.paused) return;
-        background.dataset.videoState = "poster";
-      });
-    };
-    const onPlaying = () => { background.dataset.videoState = "playing"; };
+    let attached = false,
+      failed = false,
+      disposed = false,
+      hasFrame = false;
+    const mp4 = "/backgrounds/space-background-scrub.mp4",
+      webm = "/backgrounds/space-background-scrub.webm";
+    const scrubber = attachVideoScrubber(
+      video,
+      (sample) => {
+        Object.assign(cinematicDiagnostics, {
+          targetTime: sample.target,
+          decodedTime: sample.decoded,
+          seekLag: sample.lag,
+          seekMs: sample.seekMs,
+          seeks: sample.seeks,
+          coalesced: sample.coalesced,
+          decodedBy: sample.by,
+        });
+      },
+      () => {
+        hasFrame = true;
+        background.dataset.videoState = "ready";
+      },
+      (recoverable = false) => {
+        background.dataset.videoState = hasFrame ? "held" : "poster";
+        failed = !recoverable;
+      },
+    );
     const onError = () => {
       if (!attached || disposed) return;
       background.dataset.videoState = "poster";
-      if (video.getAttribute("src") === webm) {
-        video.src = mp4;
-        if (wanted) play();
+      if (
+        video.getAttribute("src") === mp4 &&
+        video.canPlayType('video/webm; codecs="vp9"')
+      ) {
+        hasFrame = false;
+        scrubber.reset();
+        video.src = webm;
       } else {
         failed = true;
         video.pause();
@@ -170,38 +197,50 @@ function EnabledSpaceBackground() {
     const sync = () => {
       if (disposed) return;
       const journey = journeyRevealPosition.getSnapshot();
-      const enabled = canUseBackgroundJourney(Boolean(journey), window.innerWidth, motion.matches,
-        data.matches || Boolean(connection?.saveData), lowPower, BACKGROUND_SOURCE === "image");
-      background.classList.toggle("space-background--desktop-journey", Boolean(journey) && window.innerWidth >= 1024 && !motion.matches);
+      const enabled = canUseBackgroundJourney(
+        Boolean(journey),
+        window.innerWidth,
+        motion.matches,
+        data.matches || Boolean(connection?.saveData),
+        lowPower,
+        BACKGROUND_SOURCE === "image",
+      );
+      background.classList.toggle(
+        "space-background--desktop-journey",
+        Boolean(journey) && window.innerWidth >= 1024 && !motion.matches,
+      );
       background.classList.toggle("space-background--journey", enabled);
       background.toggleAttribute("data-atmosphere-paused", document.hidden);
-      video.autoplay = enabled && !document.hidden && !failed;
-      if (enabled && journey) {
-        background.style.setProperty("--video-x", `${videoParallax(journey.x, journey.panels.at(-1)?.offset ?? journey.width, window.innerWidth)}px`);
-      }
+      video.pause();
       if (!enabled && attached) {
-        wanted = false;
-        video.pause();
         attached = false;
+        hasFrame = false;
+        scrubber.reset();
         video.removeAttribute("src");
         video.removeAttribute("poster");
         video.load();
         background.dataset.videoState = "poster";
       }
-      if (enabled && !attached && !failed && !document.hidden) {
+      if (!enabled || !journey || failed || document.hidden) return;
+      if (!attached) {
         attached = true;
         video.muted = true;
         video.poster = "/backgrounds/space-background-poster.webp";
-        video.src = video.canPlayType('video/webm; codecs="vp9"') ? webm : mp4;
+        // H.264 with no B-frames is the baseline random-access path; WebM is a media-error fallback.
+        video.src = mp4;
+        video.load();
       }
-      const shouldPlay = enabled && !document.hidden && !failed;
-      if (shouldPlay === wanted) return;
-      wanted = shouldPlay;
-      if (wanted) play();
-      else video.pause();
+      const coordinate = cinematicCoordinate(journey.x, journey.panels);
+      const target = cinematicVideoTime(coordinate, video.duration);
+      cinematicDiagnostics.progress = coordinate / (journey.panels.length - 1);
+      scrubber.target(target);
+      background.style.setProperty(
+        "--video-x",
+        `${videoParallax(journey.x, journey.panels.at(-1)?.offset ?? journey.width, window.innerWidth)}px`,
+      );
     };
-    video.addEventListener("playing", onPlaying);
     video.addEventListener("error", onError);
+    video.addEventListener("loadedmetadata", sync);
     const unsubscribe = journeyRevealPosition.subscribe(sync);
     motion.addEventListener("change", sync);
     data.addEventListener("change", sync);
@@ -211,10 +250,10 @@ function EnabledSpaceBackground() {
     sync();
     return () => {
       disposed = true;
-      video.pause();
-      video.removeEventListener("playing", onPlaying);
-      video.removeEventListener("error", onError);
+      scrubber.dispose();
       unsubscribe();
+      video.removeEventListener("error", onError);
+      video.removeEventListener("loadedmetadata", sync);
       motion.removeEventListener("change", sync);
       data.removeEventListener("change", sync);
       connection?.removeEventListener("change", sync);
@@ -228,8 +267,8 @@ function EnabledSpaceBackground() {
     <>
       <div ref={backgroundRef} className={`space-background space-background--fallback space-background--${BACKGROUND_SOURCE}`} aria-hidden="true">
         <div className="space-background__image" />
-        <video ref={videoRef} className="space-background__video" autoPlay muted playsInline loop
-          preload="none" controls={false} disablePictureInPicture tabIndex={-1} aria-hidden="true" />
+        <video ref={videoRef} className="space-background__video" muted playsInline
+          preload="auto" controls={false} disablePictureInPicture tabIndex={-1} aria-hidden="true" />
         <div className="space-background__reading-scrim" />
         <div className="space-background__atmosphere" />
         <div className="space-background__stars space-background__stars--far" />

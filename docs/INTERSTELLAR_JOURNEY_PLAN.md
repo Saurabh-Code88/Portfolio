@@ -1,94 +1,138 @@
-# Continuous cinematic desktop background
+# Scroll-synchronized cinematic journey
 
-The owner superseded the six-environment design with one continuous video.
-The deleted six-region assets remain deleted. No section-specific background loader,
-configuration, compositing planes or atmospheric animation is active.
+## Authority and architecture audit
+The owner superseded autonomous looping video and circular desktop arrivals.
+The native horizontal journey in `components/horizontal-journey.tsx` remains authoritative:
+its existing scroll listener, layout measurements, smoothing RAF and `journeyRevealPosition`
+publisher supply visible x, viewport width and actual section offsets. No new scroll listener
+or master RAF was added. Existing HUD navigation owns its existing scroll RAF, history,
+keyboard cancellation, wheel interruption and rapid retargeting. Desktop orbit/settle timers
+are zero; the existing scene frame samples the visible journey rather than elapsed flight time.
 
-## Source and reproducible optimization
-The actual supplied path is `public/backgrounds/space-background.mp4`, not the proposed
-`public/space-background.mp4`. FFmpeg verified H.264 High/yuv420p, 1920x1080, 30 FPS,
-20.00 seconds, no audio, 9,808,313 bytes. Preserve it byte-for-byte.
-Run `python scripts/prepare-space-video.py /path/to/ffmpeg` with libx264/libvpx-vp9/libwebp.
-The tooling was installed temporarily outside the repository; no runtime dependency added.
+Previously independent time owners were video autoplay/loop; HUD travel/orbit/settle clocks;
+manual scroll-orbit sampling; hero bob/spin; section arrival timers; and camera following.
+For desktop, video/ship/station departure/reveals/telemetry now consume measured visible x.
+The camera is fixed at its original perspective position (0,0,8), FOV48, near .1/far120.
+Ambient station rotation, nested drag/inertia/reset, engine effects and the explicit user
+roll button retain their existing local interaction clocks; they do not advance the journey.
+Legacy tablet/fallback flight/camera paths remain outside the desktop branch.
 
-The 18-second derivative begins at source t=2. Source t=2..18 plays normally, then
-source t=18..20 dissolves into source t=0..2 over two seconds. The final composition
-therefore joins the first at source t=2, without a browser-side second decoder.
-Encode at native 1080p/30 FPS: H.264 CRF22 slow with faststart, VP9 CRF32/cpu-used4.
-Poster is source t=2, matching loop start; static mobile derivative is 768x432.
+## Chronological footage and keyframes
+Source: `public/backgrounds/space-background.mp4`, preserved byte-for-byte. Verified H.264,
+1920x1080, 30 FPS, 20 seconds, no audio, 9,808,313 bytes. `scripts/prepare-space-video.py`
+now encodes chronological derivatives directly from that original, with no trim, crossfade,
+reversal, resizing or temporal effects. Old loop derivatives are historical files, never loaded.
+Poster/mobile still are regenerated from frame zero, not the old two-second loop start.
 
-## Persistent playback
-`SpaceBackground` owns one always-mounted, decorative HTML video behind the existing
-ship/station canvas and DOM content. It is autoplay/muted/playsInline/loop with controls
-disabled, no pointer events, cover fit and 2% overscan. Section changes never set src,
-seek currentTime, key the player or control playback. VP9-capable browsers choose WebM;
-otherwise H.264. A WebM media error retries MP4; exhausted errors/autoplay rejection
-leave the static poster visible. The source original is not a browser fallback.
+| Asset | Bytes | Strategy |
+|---|---:|---|
+| Original MP4 | 9,808,313 | Preserved source |
+| Scrubbing MP4 | 14,528,611 | H.264 CRF22 medium; GOP15; no B frames; scene cuts disabled; faststart |
+| Scrubbing WebM | 6,519,749 | VP9 CRF32; GOP15; no alt-ref/lookahead; four encoding threads |
+| Desktop poster | 63,516 | 1920x1080 WebP, source frame zero |
+| Mobile still | 19,172 | 768x432 WebP, source frame zero |
 
-Only desktop horizontal journey >=1024px with normal motion/data/power attaches a video
-source. Mobile/tablet/reduced-motion users retain static layout/background behavior,
-using regenerated poster images because the owner deleted the previous static artwork.
-A mode change pauses and detaches media; returning to eligible mode may restart playback.
-Hidden documents pause; foreground restores playback from the paused position.
+The MP4 deliberately costs more bytes than the original to bound random-access decode work.
+FFmpeg verifies both derivatives at 20.00 seconds, 1080p/30 FPS, 600 frames and
+half-second keyframes (40 total per derivative).
+MP4 is the baseline; WebM is used only after MP4 media failure when VP9 is advertised.
+The integrated browser advertises no VP9 decoder; its WebM responsiveness cannot be claimed.
+Temporary FFmpeg tooling is outside the repo and adds no application runtime dependency.
 
-## Environmental movement and readability
-The existing measured journey publisher writes a CSS horizontal translation, bounded
-at 1.2% of viewport width. This fits inside 2% overscan with no scale animation or shake.
-Playback progresses with wall time even when scrolling stops. Existing scrims and a
-localized transparent left scrim protect content without introducing portfolio copy.
-No new global scroll listener, RAF, WebGL renderer, shader or lighting was added.
+## Continuous video mapping and scheduler
+`lib/cinematicTimeline.ts` defines configurable video fractions at the six section anchors:
+Home 0, Toolkit .17, Projects .38, Research .60, Experience .81, Contact 1. Actual measured
+panel intervals interpolate these moments continuously, independently of active-section changes.
+The mapping uses metadata duration and ends 1/120s before duration, inside the final 30 FPS
+frame rather than on a fragile exact frame boundary. Reverse travel evaluates the same mapping.
+The HTML video remains mounted, muted, inline and paused, with no autoplay or loop attribute.
+Section navigation never changes src or calls play. Its restrained 1.2% parallax is preserved.
 
-## Home station and protected systems
-Existing Home-only station transforms remain unchanged: departure over .02-.82 of the
-Home-to-Toolkit span translates it offscreen/deeper and scales it down; invisible groups
-cannot be hit-tested. Reverse progress restores its base position/scale. Station mounting,
-rotation/drag and reversible DPR protection retain their lifecycle.
-Horizontal journey, ship geometry/controller, destination choreography, navigation,
-interruptions, active-section detection, reveal timing, HUD and content are unchanged.
+`lib/videoScrub.ts` permits exactly one seek in flight plus one overwritten latest target.
+It waits for metadata/current-frame readiness and actual seekable ranges, clamps to a ready
+range, and coalesces rapid targets instead of queuing intermediate seeks. seeked drains the
+latest target. requestVideoFrameCallback reports decoded mediaTime; seeked/loadeddata provide
+an explicitly labeled compatibility fallback. No decoder callback moves the master timeline.
+A 5s watchdog holds the previous decoded frame during a stalled seek while preserving the
+single pending seek. Its eventual seeked event resumes the latest target; there are no
+overlapping retries. Setter/media errors terminate seeking. Native scrolling never waits.
+A seek failure holds the last decoded frame when possible; initial/media failure retains the
+poster. Hidden documents defer seeking, then catch up to the latest visible progress on return.
+Mobile/tablet/reduced-motion/data/power modes never attach a video source.
 
-## Asset sizes and validation
-| Asset | Bytes |
-|---|---:|
-| Original MP4 (preserved) | 9,808,313 |
-| Seamless WebM | 4,214,623 |
-| Seamless MP4 | 8,701,466 |
-| Desktop poster | 63,982 |
-| Mobile still | 19,704 |
+## Real 3D flight and interruption
+`lib/cinematicFlight.ts` constructs reusable cubic Bezier geometry on layout changes, not
+per frame. Home uses the measured original docking transform. Other resting anchors are
+projected into the safe right margin at world-space depths 7.8-10 units from the camera.
+Climb, depth dive, broad sweep, deep flyby and diagonal-glide control points extend through
+actual Z depths up to 26 camera units. Scale stays .78 beyond undocking: depth comes from
+perspective and world-space translation, not scale-only simulation or animated camera zoom.
 
-One chosen video is downloaded, not both in normal playback. WebM is about 57% smaller
-than the source; MP4 retains similar source bitrate and fine detail with a shorter runtime.
-Both derivatives are 1920x1080/30 FPS, 18 seconds, 540 frames, yuv420p and audio-free.
-Decoded 64x36 grayscale analysis found zero frames with >99% near-black pixels.
-MP4 wrap MAE=0.9748 versus median adjacent MAE=0.8294/max=1.1693; WebM wrap
-MAE=0.9961 versus median=0.8320/max=1.2361. Thus the encoded wrap falls within
-normal frame-to-frame changes. This numerical check does not replace visual review.
+The model's +Z nose follows sampled path tangents; ordered quaternion keys avoid Euler and
+hemisphere flips, with restrained banking derived from signed curvature plus per-leg tuning.
+Quintic parameterization gives zero positional velocity at the resting anchors. Ordered
+quaternion samples slerp into natural three-quarter poses and preserve reverse continuity.
+Distant HUD jumps build one transit spline from the current transform to the destination;
+they do not replay each intermediate arrival. Retargeting rebuilds from the visible transform.
+Wheel/keyboard interruption preserves that transform and blends back to the manual sampler
+across existing measured progress distance, holding still when progress itself stops.
 
-Lint/typecheck/tests have exited 0; 25 tests passed (eligibility, bounded reversible
-parallax, Home-only station restoration and existing protected-system suites).
-Production build exited 0. An old development preview overwrote the shared build output
-when first visited; its verified Portfolio process was stopped, and a clean rebuild also
-exited 0. Final browser checks used a fresh production server on port 3001.
+## Station, content and telemetry
+Home-only station departure stays on the original .02-.82 Home-to-Toolkit mapping. It remains
+mounted, becomes non-visible/non-hit-testable before Toolkit, and restores base placement and
+scale on return. Station drag and reversible DPR degradation/recovery remain unchanged.
+`SectionRevealController` remains the only reveal controller. Its existing arrival-distance
+mapping now begins revealing during the approach, preserving completed/focused content,
+visit floors, nested scrolling and layouts. Cockpit telemetry still consumes the existing store;
+its desktop phase is now sampled from the same visible progress. No content or HUD layout changed.
 
-Browser checks at 1024/1280/1440/1920 verified one persistent player, one metadata load,
-advancing time through manual/reverse scrolling and distant HUD retargeting/interruption,
-cover fit, no pointer interception, no horizontal overflow and canvas visibility.
-A seek near the end crossed the native loop from 17.6s to 0.91s while still playing.
-Visibility simulation held currentTime=12.045723 when hidden, then resumed to 12.477839.
-The integrated page reported document.hidden=true even after bringToFront, so foreground
-playback tests explicitly simulated visibility. Actual hidden startup loaded no video.
-768px and 375px had no video src; 375px requested only the 19,704-byte mobile still.
-Reduced motion at 1280px had no video src and used the static poster. Canvas-disabled
-mode played video; canvas-enabled checks retained one visible canvas at every tested width
-and loaded both ship/station models without remount requests on navigation.
-Forced WebM failure recovered to playing MP4; forcing both formats to fail left poster
-state and video opacity=0. Expected forced-network errors were separate from normal runs,
-which had no observed page errors. Existing Three.Clock deprecation warning remains.
+## Development diagnostics
+`/dev/flight` renders the same horizontal homepage plus controls only in development; it
+returns notFound in production. Its slider inspects measured progress and its buttons reuse
+existing navigation ownership. Mutable diagnostics are displayed at 5Hz, not every frame:
+progress, target/decoded timestamps, seek lag/latency, seek/coalescing counts, XYZ, camera
+distance, phase, destination, station visibility and a scene-frame FPS estimate.
 
-## Remaining limits
-An inspectable screenshot confirmed video/ship/Home station compositing, but the
-integrated browser screenshot clipped rendering to its host surface despite emulated
-viewport dimensions. Full-screen visual readability, actual GPU loop perception, station
-drag and later-section station absence still need hardware visual review. Deterministic
-station departure/restoration tests pass and the previously implemented transforms were
-preserved. Foreground/background lifecycle was tested with simulated visibility events.
-No destination-specific flight choreography was changed; no merge or deployment.
+## Measurements and validation
+A local integrated-browser H.264 pass recorded 99 seeks: median 23.3ms, mean 36.4ms,
+p95 101.6ms, max 350.1ms, and zero play events. Decoded-frame lag occasionally exceeded
+half a second during coarse jumps/host stalls before catching up. Observed scene estimates
+were approximately 25-30 FPS in that pass; this is not a hardware smoothness claim.
+The integrated host reports document.hidden even when brought forward; visibility was
+explicitly simulated for its foreground tests. Software/headless captures are separate evidence.
+
+The controlled production run uses fixed viewport sizes in headless Edge, software video
+decoding and SwiftShader. Unlike the editor pane, it produces native 1280x800 screenshots.
+Resting destinations and intermediate controls use the upper-right open band to keep the
+ship above project cards and Contact copy; XYZ depth controls and Home docking stay intact.
+
+Final production validation (`scripts/validate-cinematic.py --production`) exited 0:
+
+| Check | Result |
+|---|---|
+| Lint / typecheck / test / production build | Exit 0 each; 30 tests passed |
+| Desktop matrix | 1024, 1280, 1440, 1920px; forward, reverse, final frame and resize |
+| Manual/HUD ownership | Distant transit, retarget, wheel interruption, redock, back/forward passed |
+| Persistent video | 1 metadata load, 0 play events, maximum 1 in-flight seek |
+| Stationary hold | 0.004892s before and after a one-second hold |
+| Seeking | 116 seeks; median 837.9ms, p95 2225.4ms, maximum 2950.7ms |
+| Settled decoded lag | 14.5-30.0ms at sampled matrix stops; not a peak moving-lag measurement |
+| Failure/accessibility | Slow loading, aborted media, throwing seek setter, canvas off, 768/375px and reduced motion passed |
+| Production diagnostics | `/dev/flight` HTTP 404 |
+| Browser errors | No page errors or unexpected console errors |
+
+Initial harness runs exposed a resize-measurement race and a fixed-delay history assertion.
+The final harness waits for stable measured geometry and actual track/decoded endpoints;
+it preserves the same one-pixel track and frame-time assertions rather than weakening them.
+
+These software results show visible seek latency under load; they do not establish smooth
+continuous scrubbing on a physical GPU. The earlier integrated-browser timing is a separate
+environment, not interchangeable with this result. Hardware frame pacing, native VP9 seek
+performance, station drag/DPR recovery and subjective full-journey banking need owner review.
+The model remains relatively dark against some nebula regions; no new lighting was added.
+Old loop files remain unused historical assets. No push, merge or deployment was performed.
+
+Evidence: [machine-readable browser results](./validation/cinematic-validation.json),
+[Home](./validation/cinematic-home.png), [depth travel](./validation/cinematic-depth.png),
+[Contact](./validation/cinematic-contact.png). Captures are native 1280x800; the final
+composition was inspected for docking, station absence, ship visibility and text overlap.

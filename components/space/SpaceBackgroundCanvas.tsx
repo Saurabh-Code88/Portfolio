@@ -22,8 +22,10 @@ import {
 import { ShipModel } from "@/components/ship/ShipModel";
 import { StationModel, type StationRenderQuality } from "@/components/station/StationModel";
 import { getDesktopJourneyFlightGeometry, getHorizontalJourneyProjectedRect, journeyRevealPosition } from "@/lib/horizontalJourney";
-import { sampleManualFlight, type ManualFlightSample } from "@/lib/manualFlight";
-import { createScrollOrbitSample, sampleScrollOrbit, type ScrollOrbitBounds } from "@/lib/scrollOrbit";
+import { cinematicCoordinate, cinematicTransitProgress, cinematicTransitArrived } from "@/lib/cinematicTimeline";
+import { cinematicDiagnostics } from "@/lib/cinematicDiagnostics";
+import { createCinematicFlight, createCinematicPose, createCinematicTransit, sampleCinematicFlight, sampleCinematicSegment, blendCinematicHandoff, type CinematicSegment } from "@/lib/cinematicFlight";
+import { sectionArrivalProgress } from "@/lib/sectionReveal";
 import { FLIGHT_SECTION_IDS, flightCurve, flightProgressStore, getFlightSectionId, getSectionStops, sampleCubicBezier, sampleCubicBezier3, sampleFlight, sampleOrbit, smoothstep, type FlightPhase, type FlightSectionId, type FlightProgressSnapshot } from "@/lib/flightPath";
 import {
   HERO_SHIP_BREAKPOINT_OVERRIDES,
@@ -46,11 +48,8 @@ import {
   ORBIT_TILT,
   ORBIT_TURNS,
   PARK_DEPTH,
-  MANUAL_FLIGHT_ARC_WIDTH,
-  MANUAL_FLIGHT_ARC_HEIGHT,
-  MANUAL_FLIGHT_BANK,
-  MANUAL_FLIGHT_HANDOFF_SPAN,
   PARK_HOVER_AMPLITUDE,
+  MANUAL_FLIGHT_HANDOFF_SPAN,
   PARK_SCALE,
   PARK_X,
   PARK_Y,
@@ -96,6 +95,8 @@ type OrbitFlight = {
   fromScrollVelocity: number;
   lastScrollTop: number;
   lastScrollAt: number;
+  journeyFrom?: number;
+  journeyTo?: number;
 };
 type OrbitBounds = { left: number; right: number; centerX: number; centerY: number; radiusX: number; radiusY: number };
 
@@ -245,12 +246,19 @@ function FlightShip({
   const flightScreenVelocity = useMemo(() => new Vector2(), []);
   const scrollVelocity = useRef(0);
   const desktopJourney = useRef<ReturnType<typeof getDesktopJourneyFlightGeometry>>(null);
-  const manualOrbitBounds = useRef<ScrollOrbitBounds[]>([]);
-  const scrollOrbit = useMemo(createScrollOrbitSample, []);
+  const cinematicPath = useRef<{
+    key: string;
+    path: ReturnType<typeof createCinematicFlight>;
+  } | null>(null);
+  const cinematicNavigation = useRef<{
+    flight: OrbitFlight;
+    path: CinematicSegment;
+  } | null>(null);
+  const cinematicPose = useMemo(createCinematicPose, []);
+  const cinematicTarget = useMemo(createCinematicPose, []);
   const stationSpin = useRef(0);
   const hoverBlend = useRef(0);
   const tailPoint = useMemo(() => new Vector3(), []);
-  const manualSample = useRef<ManualFlightSample>({ x: PARK_X, y: PARK_Y, scale: PARK_SCALE, bank: 0, pitch: 0, departure: 0, segment: 0, local: 0, phase: "idle" });
   const manualHandoff = useRef<{ progress: number; position: Vector3; quaternion: Quaternion; scale: number } | null>(null);
   const manualNeedsHandoff = useRef(false);
   const returnToPark = useRef<{
@@ -289,8 +297,6 @@ function FlightShip({
   const dockedPosition = useMemo(() => new Vector3(), []);
   const stationPosition = useMemo(() => new Vector3(), []);
   const heroDockPosition = useMemo(() => new Vector3(), []);
-  const screenRotation = useMemo(() => new Quaternion(), []);
-  const screenAxis = useMemo(() => new Vector3(0, 0, 1), []);
   const dockLocal = useMemo(() => new Vector3(), []);
   const dockOffset = useMemo(() => new Vector3(), []);
   const stationEuler = useMemo(() => new Euler(), []);
@@ -452,14 +458,7 @@ function FlightShip({
     const updateStops = () => {
       stops.current = getSectionStops(document.documentElement.scrollHeight, window.innerHeight);
       desktopJourney.current = getDesktopJourneyFlightGeometry();
-      const journey = desktopJourney.current;
-      const width = gl.domElement.clientWidth || window.innerWidth;
-      const height = gl.domElement.clientHeight || window.innerHeight;
-      manualOrbitBounds.current = journey ? FLIGHT_SECTION_IDS.slice(1).map((id, index) => {
-        const bounds = getOrbitBounds(id, journey.start + journey.stops[index + 1] * journey.verticalDistance, width, height);
-        return { left: bounds.left / width, right: bounds.right / width, centerX: bounds.centerX / width,
-          centerY: bounds.centerY / height, radiusX: bounds.radiusX / width, radiusY: bounds.radiusY / height };
-      }) : [];
+
     };
     const root = document.querySelector("main");
     updateStops();
@@ -510,8 +509,8 @@ function FlightShip({
         sectionId: sectionId as (typeof FLIGHT_SECTION_IDS)[number],
         startedAt: now,
         travelDuration,
-        orbitDuration: isHero ? 0 : ORBIT_DURATION * pacing / Math.max(0.4, speed),
-        settleDuration: SETTLE_DURATION * pacing / Math.max(0.4, speed),
+        orbitDuration: isHero || desktopJourney.current ? 0 : ORBIT_DURATION * pacing / Math.max(0.4, speed),
+        settleDuration: desktopJourney.current ? 0 : SETTLE_DURATION * pacing / Math.max(0.4, speed),
         scrollFrom: desktopJourney.current && journeyRevealPosition.getSnapshot()
           ? desktopJourney.current.start + journeyRevealPosition.getSnapshot()!.x / Math.max(1, desktopJourney.current.horizontalDistance) * desktopJourney.current.verticalDistance
           : window.scrollY,
@@ -526,6 +525,8 @@ function FlightShip({
         fromScrollVelocity: scrollVelocity.current,
         lastScrollTop: window.scrollY,
         lastScrollAt: now,
+        journeyFrom: desktopJourney.current ? (journeyRevealPosition.getSnapshot()?.x ?? 0)/Math.max(1,desktopJourney.current.horizontalDistance) : undefined,
+        journeyTo: desktopJourney.current?.stops[sectionIndex],
       };
       manualHandoff.current = null;
       document.body.classList.add("orbit-flight-active");
@@ -804,64 +805,165 @@ function FlightShip({
     }
 
     const manualCamera = state.camera;
-    if (activeFlight && journey) manualNeedsHandoff.current = true;
-    if (journey && !activeFlight && manualCamera instanceof PerspectiveCamera) {
-      const manualProgress = sharedProgress;
-      const pose = sampleManualFlight(manualProgress, journey.stops, PARK_X, PARK_Y, PARK_SCALE,
-        MANUAL_FLIGHT_ARC_WIDTH, MANUAL_FLIGHT_ARC_HEIGHT, MANUAL_FLIGHT_BANK, manualSample.current);
-      const bounds = manualOrbitBounds.current[pose.segment];
-      if (!bounds) return;
-      const stopTolerance = 1 / Math.max(1, journey.verticalDistance * (journey.stops[pose.segment + 1] - journey.stops[pose.segment]));
-      const orbitLocal = pose.local < stopTolerance ? 0 : pose.local > 1 - stopTolerance ? 1 : pose.local;
-      flightWorld.copy(heroDockPosition).project(manualCamera);
-      const orbit = sampleScrollOrbit(orbitLocal, bounds,
-        pose.segment === 0 ? (flightWorld.x + 1) / 2 : PARK_X,
-        pose.segment === 0 ? (1 - flightWorld.y) / 2 : PARK_Y,
-        pose.segment === 0 ? dockScale : PARK_SCALE, PARK_X, PARK_Y, scrollOrbit);
-      if (manualNeedsHandoff.current && !manualHandoff.current) {
-        manualHandoff.current = { progress: manualProgress, position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x };
+    if (
+      journey &&
+      journeyPosition &&
+      manualCamera instanceof PerspectiveCamera
+    ) {
+      // Desktop has one fixed perspective projection. Depth belongs to the ship, not camera animation.
+      manualCamera.position.set(0, 0, 8);
+      manualCamera.lookAt(0, 0, 0);
+      if (manualCamera.fov !== STATION_HERO_CAMERA_FOV) {
+        manualCamera.fov = STATION_HERO_CAMERA_FOV;
+        manualCamera.updateProjectionMatrix();
+      }
+      manualCamera.updateMatrixWorld();
+      const key = `${state.size.width}:${state.size.height}:${dockScale}:${heroDockPosition.x.toFixed(4)}:${heroDockPosition.y.toFixed(4)}`;
+      if (cinematicPath.current?.key !== key) {
+        cinematicPath.current = {
+          key,
+          path: createCinematicFlight(manualCamera.aspect, manualCamera.fov, {
+            position: heroDockPosition,
+            quaternion: dockQuat,
+            scale: dockScale,
+          }),
+        };
+        // A resized navigation starts from its actual visible transform, never a stale projection.
+        cinematicNavigation.current = null;
+      }
+      const path = cinematicPath.current.path;
+      const coordinate = cinematicCoordinate(
+        journeyPosition.x,
+        journeyPosition.panels,
+      );
+      sampleCinematicFlight(path, coordinate, cinematicPose);
+      const navigation = navFlight.current;
+      let transit = 1;
+      if (navigation) {
+        if (cinematicNavigation.current?.flight !== navigation) {
+          const destination = FLIGHT_SECTION_IDS.indexOf(navigation.sectionId);
+          sampleCinematicFlight(path, destination, cinematicTarget);
+          cinematicNavigation.current = {
+            flight: navigation,
+            path: createCinematicTransit(
+              {
+                position: group.current.position,
+                quaternion: group.current.quaternion,
+                scale: group.current.scale.x,
+              },
+              cinematicTarget,
+            ),
+          };
+          navigation.journeyFrom = sharedProgress;
+        }
+        transit = cinematicTransitProgress(
+          sharedProgress,
+          navigation.journeyFrom ?? 0,
+          navigation.journeyTo ?? 1,
+        );
+        sampleCinematicSegment(
+          cinematicNavigation.current.path,
+          transit,
+          cinematicPose,
+        );
+        manualHandoff.current = null;
+        if (cinematicTransitArrived(sharedProgress, navigation.journeyTo ?? 1, journey.horizontalDistance) && scrollFrame.current === null) {
+          navFlight.current = null;
+          cinematicNavigation.current = null;
+        }
+      } else {
+        cinematicNavigation.current = null;
+        const handoff = manualHandoff.current;
+        if (handoff) {
+          const weight = Math.min(
+            1,
+            Math.abs(sharedProgress - handoff.progress) /
+              MANUAL_FLIGHT_HANDOFF_SPAN,
+          );
+          // Aliasing out and target is safe: each position/quaternion operation reads before writing.
+          blendCinematicHandoff(handoff, cinematicPose, weight, cinematicPose);
+          if (weight >= 1) manualHandoff.current = null;
+        }
       }
       manualNeedsHandoff.current = false;
       returnToPark.current = null;
-      document.body.classList.toggle("orbit-flight-active", orbit.phase !== "idle");
-      document.body.classList.toggle("orbit-flight-behind", orbit.phase !== "idle"
-        && (orbit.position.x < bounds.left || orbit.position.x > bounds.right));
-      // The camera and nested drag groups remain owned by their existing controllers.
-      // No damping or elapsed-time timeline: a stopped scroll holds this exact pose.
-      screenToWorld(manualCamera, orbit.position.x * state.size.width, orbit.position.y * state.size.height, PARK_DEPTH,
-        state.size.width, state.size.height, shipTarget);
-      // Start at the actual hero depth, then move into the shared orbit plane.
-      if (pose.segment === 0) shipTarget.lerpVectors(heroDockPosition, shipTarget, smoothstep(pose.local / .2));
-      hoverBlend.current = MathUtils.damp(hoverBlend.current, orbit.arrival, 7, delta);
-      shipTarget.y += Math.sin(state.clock.elapsedTime * .7) * PARK_HOVER_AMPLITUDE * 2 * hoverBlend.current;
-      screenRotation.setFromAxisAngle(screenAxis, -Math.atan2(orbit.tangent.x * state.size.width, -orbit.tangent.y * state.size.height));
-      bankRotation.setFromAxisAngle(localForward, orbit.bank);
-      flightOrientation.copy(dockQuat).premultiply(screenRotation).multiply(bankRotation);
-      orientation.copy(dockQuat).slerp(flightOrientation, orbit.headingWeight);
-      let manualScale = orbit.scale;
-      const handoff = manualHandoff.current;
-      if (handoff) {
-        const blend = smoothstep(MathUtils.clamp(Math.abs(manualProgress - handoff.progress) / MANUAL_FLIGHT_HANDOFF_SPAN, 0, 1));
-        shipTarget.lerpVectors(handoff.position, shipTarget, blend);
-        orientation.slerpQuaternions(handoff.quaternion, flightOrientation.copy(orientation), blend);
-        manualScale = MathUtils.lerp(handoff.scale, manualScale, blend);
-        if (blend >= 1) manualHandoff.current = null;
+      group.current.position.copy(cinematicPose.position);
+      group.current.quaternion.copy(cinematicPose.quaternion);
+      // Preserve the explicit hero roll button; there is no automatic spin in the journey sampler.
+      if (rollStart.current !== null) {
+        const roll = Math.min(1, (now - rollStart.current) / 780);
+        group.current.quaternion.multiply(
+          rollRotation.setFromAxisAngle(localForward, Math.PI * 2 * roll),
+        );
+        if (roll >= 1) rollStart.current = null;
       }
-      group.current.position.copy(shipTarget);
-      group.current.quaternion.copy(orientation);
-      group.current.scale.setScalar(manualScale);
-      displayedProgress.current = (journey.start + manualProgress * journey.verticalDistance) / journey.documentDistance;
+      group.current.scale.setScalar(cinematicPose.scale);
+      const local = coordinate - Math.floor(coordinate);
+      const atStop = Math.abs(coordinate - Math.round(coordinate)) < 0.001;
+      const moving = Boolean(navFlight.current);
+      const flightPhase: FlightPhase =
+        atStop && !moving
+          ? "idle"
+          : navigation
+            ? transit < 0.12
+              ? "undock"
+              : transit < 0.68
+                ? "travel"
+                : transit < 0.94
+                  ? "approach"
+                  : "settle"
+            : local < 0.12
+              ? "undock"
+              : local < 0.6
+                ? "travel"
+                : local < 0.92
+                  ? "approach"
+                  : "settle";
+      document.body.classList.remove(
+        "orbit-flight-active",
+        "orbit-flight-behind",
+      );
+      displayedProgress.current =
+        (journey.start + sharedProgress * journey.verticalDistance) /
+        journey.documentDistance;
       flightScreenVelocity.set(0, 0);
       warp.current = 0;
-      enginePower.current = 0.7;
+      enginePower.current = atStop ? 0.55 : 0.85;
       if (trail.current) trail.current.visible = false;
+      const destinationIndex = navigation
+        ? FLIGHT_SECTION_IDS.indexOf(navigation.sectionId)
+        : Math.min(5, Math.ceil(coordinate));
+      const destination = FLIGHT_SECTION_IDS[destinationIndex];
+      const panel = journeyPosition.panels[destinationIndex];
       publishShipFlight({
-        sectionId: getFlightSectionId(displayedProgress.current, stops.current), targetSectionId: null,
-        // Store phases orchestrate navigation reveals. Manual travel must release
-        // a cancelled navigation target immediately; its own phase lives in pose.
-        progress: displayedProgress.current, isFlying: false, isParked: orbit.phase === "idle", phase: "idle",
-        revealSectionId: FLIGHT_SECTION_IDS[pose.segment + 1], revealProgress: orbit.arrival,
+        sectionId: getFlightSectionId(displayedProgress.current, stops.current),
+        targetSectionId: navFlight.current?.sectionId ?? null,
+        progress: displayedProgress.current,
+        isFlying: moving,
+        isParked: atStop,
+        phase: flightPhase,
+        revealSectionId: destination,
+        revealProgress: sectionArrivalProgress(
+          journeyPosition.x,
+          panel.offset,
+          journeyPosition.width,
+        ),
       });
+      Object.assign(cinematicDiagnostics, {
+        progress: coordinate / 5,
+        x: group.current.position.x,
+        y: group.current.position.y,
+        z: group.current.position.z,
+        cameraDistance: manualCamera.position.distanceTo(
+          group.current.position,
+        ),
+        phase: flightPhase,
+        destination,
+        stationVisible: departure < 1,
+      });
+      if (delta > 0)
+        cinematicDiagnostics.fps +=
+          (1 / delta - cinematicDiagnostics.fps) * 0.1;
       return;
     }
     if (!journey) { manualHandoff.current = null; manualNeedsHandoff.current = false; }
