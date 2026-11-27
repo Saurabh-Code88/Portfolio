@@ -101,6 +101,25 @@ export default function FlightPreview() {
       </button>
       <output
         aria-live="off"
+        data-station-loaded={data.stationLoaded}
+        data-moving={data.scrollMoving}
+        data-eligible={data.restingEligible}
+        data-arrival={data.arrivalBlend}
+        data-levitation={data.levitation}
+        data-scale={data.modelScale}
+        data-width={data.projectedWidth}
+        data-station-user-angle={data.stationUserAngle}
+        data-station-rendered-scale={data.stationRenderedScale}
+        data-home-station-y={data.homeStationY}
+        data-home-station-scale={data.homeStationScale}
+        data-home-station-pitch={data.homeStationPitch}
+        data-home-multiplier={data.homeMultiplier}
+        data-ship-hull={data.shipHull}
+        data-station-hull={data.stationHull}
+        data-home-ship-width={data.homeShipWidth}
+        data-home-ship-height={data.homeShipHeight}
+        data-home-station-width={data.homeStationWidth}
+        data-home-station-height={data.homeStationHeight}
         data-x={data.x}
         data-y={data.y}
         data-z={data.z}
@@ -126,7 +145,22 @@ export default function FlightPreview() {
           Idle angle {data.idleAngle.toFixed(3)} / blend{" "}
           {data.idleWeight.toFixed(2)}
         </p>
-        <p>Projected hull estimate {data.projectedSize.toFixed(1)}px</p>
+        <p>
+          Projected hull bounds {data.projectedWidth.toFixed(1)} ?{" "}
+          {data.projectedSize.toFixed(1)}px / scale {data.modelScale.toFixed(3)}
+        </p>
+        <p>
+          Home ship {data.homeShipWidth.toFixed(1)} ?{" "}
+          {data.homeShipHeight.toFixed(1)}px; station{" "}
+          {data.homeStationWidth.toFixed(1)} ?{" "}
+          {data.homeStationHeight.toFixed(1)}px
+        </p>
+        <p>
+          Scroll {data.scrollMoving ? "moving" : "settled"}; arrival{" "}
+          {data.restingEligible ? "eligible" : "travel"} /{" "}
+          {data.arrivalBlend.toFixed(2)}; levitation{" "}
+          {data.levitation.toFixed(3)}
+        </p>
         <p>
           Video target {data.targetTime.toFixed(3)}s / decoded{" "}
           {data.decodedTime.toFixed(3)}s

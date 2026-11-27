@@ -3,6 +3,8 @@ import { DESTINATION_STAGES, applyShipIdle, createShipIdle, stageWorldPoint } fr
 import { stationDeparture } from "@/lib/backgroundJourney";
 
 import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { createShipArrival, updateShipArrival } from "@/lib/shipArrival";
+import { HOME_COMPOSITION, createHomeComposition, fitStationDrag, SHIP_HULL, STATION_HULL, projectedBounds } from "@/lib/homeComposition";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, Sparkles, Stars } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
@@ -13,6 +15,7 @@ import {
   Euler,
   Group,
   DirectionalLight,
+  Box3,
   AmbientLight,
   PointLight,
   Color,
@@ -263,8 +266,20 @@ function FlightShip({
   const cinematicPose = useMemo(createCinematicPose, []);
   const cinematicTarget = useMemo(createCinematicPose, []);
   const stagingIdle = useRef(createShipIdle());
+  const arrival = useRef(createShipArrival());
+  const shipHull = useRef(SHIP_HULL.clone());
+  const stationHull = useRef(STATION_HULL.clone());
+  const stationPoints = useRef<Vector3[] | null>(null);
+  const dragFit = useRef({key:"",scale:1});
+  const stationHullMeasured=useCallback((points:Vector3[])=>{
+    // Already a compact full-yaw envelope; independent of triangle count.
+    stationPoints.current=points;
+    homeLayout.current=null;
+  },[]);
+  const homeLayout = useRef<{key:string; value:ReturnType<typeof createHomeComposition>} | null>(null);
   const idleRotation = useMemo(() => new Quaternion(), []);
   const priorStagingProgress = useRef(0);
+  const priorRestBlend = useRef(0);
   const handoffRestElapsed = useRef(0);
 
 
@@ -347,8 +362,17 @@ function FlightShip({
       tailY: (1 - tailPoint.y) * canvasSize.height / 2 });
   }, [camera, canvasSize, tailPoint, group]);
   const modelLoaded = useCallback(() => { ready.current = true; setStationReady(true); }, [ready]);
-  const modelMeasured = useCallback((bounds: { nose: number }) => {
+  const modelMeasured = useCallback((bounds: { nose: number; box: Box3 }) => {
+    shipHull.current.copy(bounds.box);
+    homeLayout.current=null;
     if (Number.isFinite(bounds.nose) && bounds.nose > 0) shipNoseOffset.current = bounds.nose;
+  }, []);
+
+  const stationMeasured = useCallback((size: readonly [number,number,number]) => {
+    cinematicDiagnostics.stationLoaded=true;
+    const factor=STATION_DIAMETER/Math.max(size[0],size[2]);
+    stationHull.current.set(new Vector3(...size).multiplyScalar(-factor/2), new Vector3(...size).multiplyScalar(factor/2));
+    homeLayout.current=null;
   }, []);
 
   useEffect(() => {
@@ -768,7 +792,7 @@ function FlightShip({
     );
     const stationHeight = desiredWidth * STATION_HEIGHT_RATIO;
     const heroAspectScale = Math.max(1, aspect / 1.6);
-    const dockScale = Math.min(DOCK_HOVER_HEIGHT, shipPreset.scale * heroAspectScale);
+    let dockScale = Math.min(DOCK_HOVER_HEIGHT, shipPreset.scale * heroAspectScale);
     const dockedHoverOffset = Math.min(
       DOCK_HOVER_HEIGHT,
       dockScale * 0.78 + DOCK_ENGINE_CLEARANCE,
@@ -782,8 +806,8 @@ function FlightShip({
     if (activeFlight) hoverBlend.current = 0;
     if (journey) stationSpin.current += Math.min(delta, .05) * STATION_JOURNEY_SPIN;
     stationEuler.set(
-      stationPreset.rotation[0],
-      stationPreset.rotation[1] + (journey ? stationSpin.current : state.clock.elapsedTime * STATION_YAW_DRIFT),
+      journey ? HOME_COMPOSITION.stationPitch : stationPreset.rotation[0],
+      stationPreset.rotation[1] + (journey ? HOME_COMPOSITION.stationYaw : 0) + (journey ? stationSpin.current : state.clock.elapsedTime * STATION_YAW_DRIFT),
       stationPreset.rotation[2],
     );
     dockOffset.copy(dockLocal).applyEuler(stationEuler).multiplyScalar(stationWorldScale);
@@ -803,6 +827,22 @@ function FlightShip({
     stationPosition.set(stationX, stationY, stationPreset.position[2]);
     heroDockPosition.copy(stationPosition).add(dockOffset);
     heroDockPosition.y += dockedHoverOffset;
+    if (journey) {
+      const user=stationUserGroup.current?.quaternion ?? new Quaternion();
+      const homeKey=`${state.size.width}:${state.size.height}`;
+      if(homeLayout.current?.key!==homeKey) homeLayout.current={key:homeKey,value:createHomeComposition(state.size.width,state.size.height,shipHull.current,stationHull.current,undefined,stationPoints.current)};
+      const home=homeLayout.current.value;
+      stationPosition.copy(home.station.position);
+      stationWorldScale=home.station.scale;
+      if(user.angleTo(identityRotation)>.002) {
+        const rotation=new Quaternion().setFromEuler(stationEuler).multiply(user);
+        const key=homeKey+rotation.toArray().map(n=>n.toFixed(3)).join();
+        if(dragFit.current.key!==key) dragFit.current={key,scale:fitStationDrag(home,stationHull.current,rotation,state.size.width,state.size.height,shipHull.current,stationPoints.current)};
+        stationWorldScale=dragFit.current.scale;
+      }
+      heroDockPosition.copy(home.ship.position);
+      dockScale=home.ship.scale;
+    }
     const departure = journey ? stationDeparture(sharedProgress, 0, journey.stops[1]) : 0;
 
     if (journey) {
@@ -837,7 +877,7 @@ function FlightShip({
           key,
           path: createCinematicFlight(manualCamera.aspect, manualCamera.fov, {
             position: heroDockPosition,
-            quaternion: dockQuat,
+            quaternion: homeLayout.current?.value.ship.quaternion ?? dockQuat,
             scale: dockScale,
           }),
         };
@@ -851,9 +891,11 @@ function FlightShip({
       );
       sampleCinematicFlight(path, coordinate, cinematicPose);
       const stopIndex = Math.round(coordinate);
-      const stableStop = Math.abs(coordinate-stopIndex) * journeyPosition.width < 1.1 && !navFlight.current;
+      const resting=updateShipArrival(arrival.current,journeyPosition.x,journeyPosition.panels.map(panel=>panel.offset),journeyPosition.width,now/1000,delta,Boolean(navFlight.current));
+      const stableStop=resting.index>=0;
+      if(stableStop) blendCinematicHandoff(cinematicPose,path.anchors[resting.index],resting.blend,cinematicPose);
       if (!stableStop) handoffRestElapsed.current=0;
-      if (!stableStop && stagingIdle.current.index > 0 && !navFlight.current) {
+      if (!stableStop && (stagingIdle.current.index > 0 || priorRestBlend.current > 0) && !navFlight.current) {
         manualHandoff.current = {
           progress: priorStagingProgress.current,
           position: group.current.position.clone(), quaternion: group.current.quaternion.clone(), scale: group.current.scale.x,
@@ -917,7 +959,8 @@ function FlightShip({
         stagingIdle.current.index=stopIndex;
         stagingIdle.current.elapsed=cinematicDiagnostics.inspectIdleAngle/(Math.PI*2)*DESTINATION_STAGES[stopIndex].axialPeriod;
       }
-      applyShipIdle(stagingIdle.current, stableStop && !manualHandoff.current ? stopIndex : -1, delta, cinematicPose, idleRotation);
+      applyShipIdle(stagingIdle.current, stableStop && resting.blend>=1 && !manualHandoff.current ? stopIndex : -1, delta, cinematicPose, idleRotation);
+      priorRestBlend.current = resting.blend;
       priorStagingProgress.current = sharedProgress;
       group.current.position.copy(cinematicPose.position);
       group.current.quaternion.copy(cinematicPose.quaternion);
@@ -931,7 +974,7 @@ function FlightShip({
       }
       group.current.scale.setScalar(cinematicPose.scale);
       const local = coordinate - Math.floor(coordinate);
-      const atStop = Math.abs(coordinate - Math.round(coordinate)) < 0.001;
+      const atStop = stableStop;
       const moving = Boolean(navFlight.current);
       const flightPhase: FlightPhase =
         atStop && !moving
@@ -981,7 +1024,24 @@ function FlightShip({
           journeyPosition.width,
         ),
       });
-      Object.assign(cinematicDiagnostics, {
+      if(process.env.NODE_ENV === "development") Object.assign(cinematicDiagnostics, {
+        scrollMoving: resting.moving,
+        restingEligible: resting.eligible,
+        arrivalBlend: resting.blend,
+        modelScale: cinematicPose.scale,
+        levitation: stableStop ? cinematicPose.position.y-path.anchors[stopIndex].position.y : 0,
+        stationUserAngle: stationUserGroup.current?.quaternion.angleTo(identityRotation) ?? 0,
+        stationRenderedScale:stationGroup.current?.scale.x ?? 0,
+        homeStationY: homeLayout.current?.value.station.position.y ?? 0,
+        homeStationScale:homeLayout.current?.value.station.scale ?? 0,
+        homeStationPitch:HOME_COMPOSITION.stationPitch,
+        homeMultiplier: homeLayout.current?.value.multiplier ?? 0,
+        shipHull: shipHull.current.min.toArray().join()+";"+shipHull.current.max.toArray().join(),
+        stationHull: stationHull.current.min.toArray().join()+";"+stationHull.current.max.toArray().join(),
+        homeShipWidth: homeLayout.current?.value.shipBounds.width ?? 0,
+        homeShipHeight: homeLayout.current?.value.shipBounds.height ?? 0,
+        homeStationWidth: homeLayout.current?.value.stationBounds.width ?? 0,
+        homeStationHeight: homeLayout.current?.value.stationBounds.height ?? 0,
         progress: coordinate / 5,
         x: group.current.position.x,
         y: group.current.position.y,
@@ -998,7 +1058,8 @@ function FlightShip({
         idleAngle: stagingIdle.current.angle,
         idleWeight: stagingIdle.current.weight,
         flightProfile: DESTINATION_STAGES[destinationIndex].profile,
-        projectedSize: cinematicPose.scale / (8-cinematicPose.position.z) / Math.tan(manualCamera.fov*Math.PI/360) * state.size.height,
+        projectedSize: projectedBounds(shipHull.current,cinematicPose,state.size.width,state.size.height).height,
+        projectedWidth: projectedBounds(shipHull.current,cinematicPose,state.size.width,state.size.height).width,
 
       });
       if (delta > 0)
@@ -1321,7 +1382,7 @@ function FlightShip({
           {stationReady && (
             <StationErrorBoundary>
               <Suspense fallback={null}>
-                <StationModel onQualityChange={onStationQualityChange} />
+                <StationModel onQualityChange={onStationQualityChange} onBounds={stationMeasured} onHull={canvasSize.width>=1024 ? stationHullMeasured : undefined} />
               </Suspense>
             </StationErrorBoundary>
           )}
@@ -1399,15 +1460,16 @@ function BackgroundScene({
     const journey=journeyRevealPosition.getSnapshot();
     const coordinate=journey ? cinematicCoordinate(journey.x,journey.panels) : 0;
     const enabled=process.env.NODE_ENV !== "development" || cinematicDiagnostics.lightingEnabled;
-    // Restore exact original lighting at Home and outside desktop journey mode.
-    const lightBlend=journey && enabled ? smoothstep(Math.min(1,coordinate/.3)) : 0;
+    // Desktop Home needs a frontal key: the legacy key was behind the camera-facing hull.
+    const lightBlend=journey && enabled ? 1 : 0;
+    const departureLight=journey ? smoothstep(Math.min(1,coordinate/.3)) : 0;
     if (stagingKey.current) {
-      stagingKey.current.position.set(-2+8*lightBlend,3+5*lightBlend,-4+16*lightBlend);
-      stagingKey.current.intensity=2.1+.7*lightBlend;
+      stagingKey.current.position.set(-2+(5+3*departureLight)*lightBlend,3+(2+3*departureLight)*lightBlend,-4+16*lightBlend);
+      stagingKey.current.intensity=2.1+(1.1-.4*departureLight)*lightBlend;
       stagingKey.current.color.lerpColors(originalKeyColor,stagedKeyColor,lightBlend);
     }
-    if (stagingFill.current) stagingFill.current.intensity=.24+.4*lightBlend;
-    if (stagingRim.current) { stagingRim.current.intensity=2.4*lightBlend; stagingRim.current.visible=lightBlend>0; }
+    if (stagingFill.current) stagingFill.current.intensity=.24+(.26+.14*departureLight)*lightBlend;
+    if (stagingRim.current) { stagingRim.current.intensity=(1.4+departureLight)*lightBlend; stagingRim.current.visible=lightBlend>0; }
     if (originalPoint.current) originalPoint.current.intensity=1.25*(1-lightBlend);
     if (farStars.current) {
       farStars.current.rotation.x = MathUtils.damp(farStars.current.rotation.x, pointer.current.y * 0.012, 1.5, delta);

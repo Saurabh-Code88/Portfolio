@@ -1,5 +1,6 @@
 "use client";
 
+import { modelHull } from "@/lib/modelHull";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
@@ -51,7 +52,9 @@ export function StationModel({
   scale = STATION_SCALE,
   onQualityChange,
   onBounds,
+  onHull,
 }: {
+  onHull?: (points: Vector3[]) => void;
   preview?: boolean;
   scale?: number;
   onQualityChange?: (quality: StationRenderQuality) => void;
@@ -74,6 +77,8 @@ export function StationModel({
   const center = useMemo(() => bounds.getCenter(new Vector3()), [bounds]);
   const size = useMemo(() => bounds.getSize(new Vector3()), [bounds]);
   const normalizeScale = STATION_DIAMETER / Math.max(size.x, size.z, 0.001) * scale;
+
+  const hull = useMemo(() => onHull ? modelHull(model,center,normalizeScale,bounds) : null,[onHull,model,center,normalizeScale,bounds]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
@@ -107,7 +112,11 @@ export function StationModel({
   }, []);
 
   useEffect(() => {
-    if (preview) onBounds?.([size.x, size.y, size.z]);
+    if(hull) onHull?.(hull);
+  }, [onHull,hull]);
+
+  useEffect(() => {
+    onBounds?.([size.x, size.y, size.z]);
   }, [onBounds, preview, size]);
 
   useEffect(() => {

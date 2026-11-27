@@ -62,11 +62,11 @@ Mobile/tablet/reduced-motion/data/power modes never attach a video source.
 
 ## Real 3D flight and interruption
 `lib/cinematicFlight.ts` constructs reusable cubic Bezier geometry on layout changes, not
-per frame. Home uses the measured original docking transform. Other resting anchors are
+per frame. Home uses the fitted, coordinated docking transform in `lib/homeComposition.ts`. Other resting anchors are
 resolved from `lib/shipStaging.ts` into alternating bottom, left and right staging at
 world-space depths 7.8-10 units from the camera.
 Undock/bank, depth climb, broad sweep, descending flyby and rising-glide controls extend
-through camera-depth controls up to 24 units. Resting scale is .98 (.931 in the dense 1024px composition), blended per leg: depth comes from
+through camera-depth controls up to 24 units. Resting scale is 1.37 (1.3015 in the dense 1024px composition), blended per leg: depth comes from
 perspective and world-space translation, not scale-only simulation or animated camera zoom.
 
 The model's +Z nose follows sampled path tangents; ordered quaternion keys avoid Euler and
@@ -104,7 +104,7 @@ camera depth, per-destination size, nose direction, bank, entry/departure contro
 periods and content-safe rectangles. World poses resolve through the existing FOV48 camera.
 This configuration is authoritative for ship staging; the protected cinematic timeline retains
 its video moments unchanged, and its historical pose fields are no longer sampled.
-Home still uses the original measured dock transform and scale, with no floating idle.
+Home now uses the shared fitted ship/station composition, with no floating idle; see the current refinement below.
 
 | Destination | Resting composition | Entry profile |
 |---|---|---|
@@ -114,10 +114,9 @@ Home still uses the original measured dock transform and scale, with no floating
 | Experience | Bottom center; horizontal, nose left | Descending depth flyby |
 | Contact | Left; near-vertical diagonal | Calm rising glide |
 
-Non-Home model scale .98 is 25.6% above the previous .78 at the same resting depth.
-The dense aspect-ratio variant uses .931 (19.4% increase) to preserve viewport margins.
-These are model-scale increases; changed orientation also affects projected size. The
-projected hull-length estimate spans roughly 176-226px at 1280x800 before foreshortening.
+Non-Home model scale is now 1.37, versus .98 in commit 3d3bfa2 (39.8% increase).
+The dense aspect-ratio variant is 1.3015, versus .931. Projected bounds include perspective,
+orientation and local axial rotation rather than assuming that pixel sizes scale linearly.
 Depth still changes in world space; there is no global scene scaling or camera zoom.
 Desktop CSS reserves the lower viewport for Toolkit/Experience and opposite-side content
 space for Projects/Research/Contact. Existing nested scroll regions retain all content;
@@ -129,27 +128,27 @@ with a narrow +Z end (end-slice XY extents .2065/.2184) and wider -Z end (.4912/
 This agrees with forwardSign=1, the runtime +Z nose bound, and both engine nozzles at Z=-.78.
 No asset geometry, textures, materials, exposure or tone mapping were modified.
 
-The existing FlightShip frame callback owns final composition. Idle starts only within
-1.1 measured horizontal pixels of a non-Home destination, after navigation/handoff ends.
-A 1.2s smooth arrival envelope introduces a .03-.035 world-unit vertical sinusoid with
-5.6-6.6s periods and a 32-40s full local +Z revolution. Quaternion composition is
-base resting orientation * local axial rotation; the main nose direction remains stable.
-Mid-flight stops retain the deterministic pose and never start idle. Video remains paused.
-Manual departure captures the exact displayed idle transform and blends it into the base
-path across the existing progress handoff span. Return to a stop resolves any remaining
-handoff over .8s before idle begins. HUD transit/retarget starts from the displayed pose,
-including arbitrary axial roll, and uses the destination's configured approach control.
+The existing FlightShip callback remains the sole transform owner. `lib/shipArrival.ts`
+samples measured visible x: movement above .35 cumulative pixels resets a .28s settling
+window. Arrival regions are 8% of viewport width, capped at 10% of the adjacent measured
+panel interval. Neither scroll position nor journey/video progress is changed. Settled,
+eligible arrivals blend from the deterministic sampled pose to the resting pose over .85s.
+A pending manual interruption handoff resolves over the existing .8s before idle starts.
+A genuine midpoint stop holds its deterministic travel pose. Small scroll adjustments leave
+idle from the displayed transform and recover after settling; no canonical quaternion reset.
 
-Lighting uses the existing BackgroundScene frame callback: the original warm key moves
-forward and softens to warm white; the original ambient fill rises from .24 to .64; one
-subdued blue-white directional rim reaches 2.4. The existing rear point fades out rather
-than adding point lights. The blend follows the first .3 section coordinate and restores
-original key/fill/point values exactly at Home and outside desktop journey mode. The rim
-is invisible there. Station lighting may change subtly while departing; its original Home
-appearance is preserved. No shadow maps, bloom pass, renderer, animation loop or dependency
-was added. Existing engine glow, materials and environment reflection remain intact.
+Levitation is .045-.05 world units at 5.6-6.6s periods; local +Z rotation remains 32-40s.
+The 1.2s arrival envelope and .25s suspension cap remain, with bounded offsets layered on a
+fresh base pose. Reduced-motion/tablet/canvas-disabled paths do not enter this desktop branch.
 
-### Staging validation (2026-11-27)
+Desktop lighting now also includes Home: existing key moves to [3,5,12], intensity3.2,
+warm-white color; ambient .50 and directional rim1.4. The existing point fades out. These
+blend smoothly to the prior destination values during the first .3 section coordinate:
+key[6,8,12]/2.8, ambient .64, rim2.4. Original lighting remains outside desktop journey
+mode. No extra light, shadow map, postprocessing pass, renderer or animation loop was added.
+Materials, textures, exposure, tone mapping and both GLB assets remain unchanged.
+
+### Prior staging phase validation (commit 3d3bfa2)
 - Final lint, typecheck, 33 tests and production build each exited 0.
 - The native desktop matrix completed all 24 destination checks at 1024/1280/1440/1920px.
   Its initial run then timed out compiling the root route for fallbacks. A competing Portfolio
@@ -252,3 +251,130 @@ Evidence: [machine-readable browser results](./validation/cinematic-validation.j
 [Home](./validation/cinematic-home.png), [depth travel](./validation/cinematic-depth.png),
 [Contact](./validation/cinematic-contact.png). Captures are native 1280x800; the final
 composition was inspected for docking, station absence, ship visibility and text overlap.
+
+## Current refinement: idle recovery and cinematic Home
+
+Root cause: the previous stable-stop gate required alignment within 1.1 horizontal pixels.
+Ordinary manual arrivals remained in travel state; the same gate also prevented pending
+manual handoffs from resolving and therefore blocked idle. Audit confirmed the canvas uses
+its normal continuous R3F frameloop; no demand-mode invalidation or missing RAF was involved.
+The fix changes eligibility and settling in the existing transform owner, not rendering ownership.
+
+`HOME_COMPOSITION` centralizes the 1.8 starting enlargement, 1.2 ship emphasis, FOV48/depth8.35,
+96px top reserve, 68px bottom reserve and .16-unit clearance. Home has a -.18rad station pitch,
+90-degree initial station yaw and a fixed 45-degree ship axial angle (nose remains upward). A bounded fit scales the ship
+and station together, centers the combined projected silhouette and recalibrates ship height
+above the station. Runtime ship bounds and station geometry measurements replace estimates.
+The compact station profile comes directly from source vertices: 32 height bins, both bin
+ends and 32 circumscribed ring points, at most 2048 points regardless of mesh complexity.
+It conservatively covers continuous ambient yaw. The first prototype expanded every convex
+hull vertex across yaw samples; that expensive temporary representation was discarded.
+The profile is computed only for desktop canvas widths. Source bounds and parent/centering
+transforms are handled explicitly so crossing the tablet breakpoint does not change normalization.
+Layout fitting is cached by viewport/assets, not recomputed for each section or ambient turn.
+
+User station drag remains on the existing nested quaternion/inertia owner. Its separately
+cached fit reduces only the station when needed to preserve viewport/docking clearance;
+it never moves the ship's Home anchor or rebuilds a flight due to drag. Departure still
+uses the original .02-.82 Home-to-Toolkit station mapping, with no station unmount.
+Initial load, resize, manual/HUD/history return and reverse travel share the same Home pose.
+Existing spline controls, banks, depth excursions and interpolation remain unchanged.
+
+Only active desktop canvas + horizontal journey suppresses the Home introduction, proof
+points, action links, local star overlay and floating roll hit target via display:none.
+No invisible controls remain tabbable. A visually hidden content-sourced heading preserves
+Home identity. All original content stays in the DOM/source and returns for canvas failure,
+canvas off, mobile/tablet and reduced motion. No replacement marketing content was added.
+
+Changed implementation: `lib/shipArrival.ts`, `lib/homeComposition.ts`, `lib/modelHull.ts`,
+`lib/shipStaging.ts`, `components/space/SpaceBackgroundCanvas.tsx`, the ship/station bounds
+callbacks, `components/hero.tsx`, `app/globals.css`, development diagnostics/preview, and
+focused cinematic tests. Optional `scripts/validate-refinement.py` captures native Edge
+checks and timestamped screencasts; `scripts/validate-refinement-production.py` checks the
+production server and `scripts/measure-refinement.mts` reproduces source-bound comparisons.
+These tools add no runtime dependency.
+
+### Measured refinement sizes
+
+Measurements use identical runtime source AABBs and the real FOV48 perspective projection.
+The before pose is reconstructed from commit 3d3bfa2. Station values use nominal ambient
+yaw zero in each configuration; these are conservative projected bounds, not traced pixel
+silhouettes. The fitted full-yaw source-geometry envelope is separately recorded by diagnostics.
+All rows below use an 800px viewport height. Source geometry/materials remain unchanged.
+
+| Viewport width | Home ship before -> after (px) | Station width before -> after (px) | Ship bounding area ratio |
+|---|---|---|---|
+| 1024 | 67x267 -> 122x408 | 431 -> 726 | 2.79x |
+| 1280 | 67x267 -> 112x374 | 587 -> 878 | 2.36x |
+| 1440 | 67x267 -> 107x356 | 701 -> 968 | 2.14x |
+| 1920 | 67x267 -> 94x310 | 1142 -> 1218 | 1.64x |
+
+The initial 1.5-1.8x targets are bounded rather than forced: a 1920x800 viewport already had
+a very wide station. Its width grows only 6.7% to preserve full rotation/viewport and HUD
+clearance; the wider ship presentation still increases its projected bounding area 64%.
+At 1280x800, station width increases 49.5% and ship height 40.2%, with a 67% width increase.
+Axial presentation changes projected area; no global scene or camera scaling is involved.
+
+At 1280x800, the canonical non-Home longest projected dimensions are Toolkit205->287px,
+Projects186->260px, Research180->252px, Experience231->323px and Contact194->271px.
+These approximately 40% increases include perspective and actual source bounds, before idle
+rotation. `scripts/measure-refinement.mts` reproduces the comparison in `sizes.json`.
+
+### Refinement validation
+
+Native Edge used SwiftShader and software video decoding. The desktop matrix exercised
+all six stops at 1024/1280/1440/1920px with off-anchor manual arrivals. All 24 pose checks
+completed; that invocation exited 1 in its post-resize tail. A final four-width Home run
+exited 0. The separate behavior/fallback tail exited 0 with no page errors: reverse arrival,
+small adjustment, axial idle while video time stays fixed, deterministic midpoint hold,
+HUD retarget/wheel interruption, Home return and desktop content suppression, 375/768px,
+reduced motion and meaningful canvas-disabled content. Earlier tail harness failures came
+from fixed-delay settling and rounded CSS matrices; the final version observes the existing
+full-precision journey progress without changing application scroll behavior.
+
+The recording run exited 0, including actual raycast station dragging (0.699rad user angle),
+release/reset, manual idle and Home departure/return. Its 100 observed frames span 125.74s;
+the WebM is 849,867 bytes and a complete independent FFmpeg decode exited 0. One generic
+HTTP500 resource message occurred during this development capture; its URL was not retained.
+The separate production smoke explicitly checks console and page errors.
+
+The built-in development FPS simulation exited 0: real canvas backing DPR reduced from
+1.25 to 1 and restored to 1.25, with one station mount and zero unmounts. Raster draws were
+suppressed only in this isolated controller test; full-render captures/recording are separate.
+It establishes reversible controller/lifecycle behavior, not physical GPU performance.
+
+Evidence: [desktop matrix](./validation/refinement/matrix-validation.json),
+[final Home matrix](./validation/refinement/home-validation.json),
+[behavior/fallback results](./validation/refinement/validation.json),
+[DPR simulation](./validation/refinement/dpr-simulation.json),
+[size measurements](./validation/refinement/sizes.json),
+[recording results](./validation/refinement/recording.json),
+[idle and Home recording](./validation/refinement/idle-and-home.webm).
+Inspected captures: [Home](./validation/refinement/hero.png),
+[Toolkit](./validation/refinement/toolkit.png), [Projects](./validation/refinement/projects.png),
+[Research](./validation/refinement/research.png), [Experience](./validation/refinement/experience.png),
+[Contact](./validation/refinement/contact.png), [station drag](./validation/refinement/station-drag.png).
+
+Final release gates: `npm run lint` exit 0, `npm run typecheck` exit 0,
+`npm run test` exit 0 (36 passed, zero skipped), `npm run build` exit 0.
+The preview was stopped before building; the production smoke ran on the completed build.
+Production browser exit 0: HTTP200, development route HTTP404, zero page/console errors,
+WebGL error0, keyboard navigation, history back/forward and nested Projects scrolling passed.
+The inspected ship crops show actual hull rotation while video time stays exactly 7.597285s.
+Normal-URL reduced motion and an injected unavailable WebGL context retain meaningful Home
+content; reduced motion loads no video source. See [production results](./validation/refinement/production-smoke.json),
+[idle before](./validation/refinement/production-idle-before.png) and
+[idle after](./validation/refinement/production-idle-after.png).
+
+Performance limits: the short production Toolkit sample has median 774.95ms/p95 833.3ms
+frame intervals on SwiftShader. The development Home recording's three valid intervals
+have median 1516.7ms/p95 1566.6ms; its initial negative timestamp sample is explicitly excluded.
+These are different scenes/build modes, not a before/after performance comparison. Severe
+software rendering and the existing bounded frame delta slow visible ambient motion here.
+Physical GPU frame pacing, native VP9 seek performance and subjective full-speed flight still
+need owner review. No additional renderer, animation loop, scroll listener, light, shadow pass,
+postprocessing effect or runtime dependency was added. Layout fitting is cached and diagnostics
+projection is development-only. Existing video seek latency remains outside this refinement.
+The 1920x800 Home enlargement cap is intentional. Background video bytes, timing/seek queue,
+original GLBs/materials, content sources and destination spline profiles are unchanged.
+No push, merge or deployment was performed.

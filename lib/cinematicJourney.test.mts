@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Quaternion, Vector3 } from "three";
+import { Box3, BoxGeometry, Group, Mesh, Quaternion, Vector3 } from "three";
 import {
   CINEMATIC_ANCHORS,
   cinematicCoordinate,
@@ -25,6 +25,133 @@ import {
   applyShipIdle,
 } from "./shipStaging.ts";
 
+import { createShipArrival, updateShipArrival } from "./shipArrival.ts";
+import {
+  fitStationDrag,
+  createHomeComposition,
+  projectedBounds,
+  SHIP_HULL,
+  STATION_HULL,
+} from "./homeComposition.ts";
+
+import { modelHull } from "./modelHull.ts";
+test("compact station envelope encloses yaw and drag fits without moving the ship", () => {
+  const root = new Group();
+  root.add(new Mesh(new BoxGeometry(3, 0.8, 4)));
+  const points = modelHull(root, new Vector3(), 1);
+  assert.ok(points.length <= 2048);
+  const box = new Box3().setFromObject(root);
+  for (const w of [1024, 1280, 1440, 1920]) {
+    const home = createHomeComposition(
+      w,
+      800,
+      SHIP_HULL,
+      box,
+      undefined,
+      points,
+    );
+    const original = home.ship.position.clone();
+    assert.ok(fitStationDrag(home,box,home.station.quaternion,w,800,SHIP_HULL,points)/home.station.scale>.9999,"drag must not shrink at its zero-angle boundary");
+    const envelope = projectedBounds(points, home.station, w, 800);
+    for (const yaw of [0, 0.2, 0.8, 1.57, 2.3]) {
+      const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+      const actual = projectedBounds(
+        box,
+        {
+          ...home.station,
+          quaternion: home.station.quaternion.clone().multiply(q),
+        },
+        w,
+        800,
+      );
+      assert.ok(
+        envelope.left <= actual.left + 0.001 &&
+          envelope.right >= actual.right - 0.001,
+      );
+      assert.ok(
+        envelope.top <= actual.top + 0.001 &&
+          envelope.bottom >= actual.bottom - 0.001,
+      );
+    }
+
+    for (const angle of [0, 0.3, 0.8, 1.5]) {
+      const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), angle);
+      const scale = fitStationDrag(home, box, q, w, 800, SHIP_HULL);
+      const bounds = projectedBounds(
+        box,
+        { ...home.station, quaternion: q, scale },
+        w,
+        800,
+      );
+      assert.ok(bounds.top >= 95.9 && bounds.bottom <= 732.1);
+      assert.ok(home.ship.position.equals(original));
+    }
+  }
+  root.children.forEach((child) => {
+    if (child instanceof Mesh) child.geometry.dispose();
+  });
+});
+
+test("measured arrivals settle near anchors without moving the scroll or activating mid-flight", () => {
+  const state = createShipArrival(),
+    offsets = [0, 1024, 2048, 3072, 4096, 5120];
+  for (const x of [1048, 2010, 3100, 4050, 5090, 2072, 1020]) {
+    updateShipArrival(state, x, offsets, 1024, 1, 1 / 60, false);
+    let result = updateShipArrival(state, x, offsets, 1024, 1.3, 1 / 60, false);
+    for (let i = 0; i < 70; i++)
+      result = updateShipArrival(
+        state,
+        x,
+        offsets,
+        1024,
+        1.3 + i / 60,
+        1 / 60,
+        false,
+      );
+    assert.equal(result.index, Math.round(x / 1024));
+    assert.equal(result.blend, 1);
+    result = updateShipArrival(state, x + 1, offsets, 1024, 3, 1 / 60, false);
+    assert.equal(result.index, -1);
+    assert.equal(result.moving, true);
+  }
+  assert.equal(
+    updateShipArrival(state, 1536, offsets, 1024, 5, 0.1, false).index,
+    -1,
+  );
+  assert.equal(
+    updateShipArrival(state, 1536, offsets, 1024, 6, 0.1, false).index,
+    -1,
+  );
+  assert.equal(
+    updateShipArrival(state, 2050, offsets, 1024, 8, 0.1, true).index,
+    -1,
+  );
+  assert.equal(
+    updateShipArrival(state, 2131, offsets, 1024, 9, 0.1, false).eligible,
+    false,
+  );
+});
+test("Home composition restores the same coordinated dock and fits rotated station bounds", () => {
+  for (const w of [1024, 1280, 1440, 1920])
+    for (const angle of [0, 0.4, 1.2, Math.PI / 2]) {
+      const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), angle);
+      const a = createHomeComposition(w, 800, SHIP_HULL, STATION_HULL, q),
+        b = createHomeComposition(w, 800, SHIP_HULL, STATION_HULL, q);
+      assert.ok(a.ship.position.equals(b.ship.position));
+      assert.equal(a.ship.scale, b.ship.scale);
+      for (const bounds of [a.shipBounds, a.stationBounds]) {
+        assert.ok(bounds.top >= 95.9 && bounds.bottom <= 732.1);
+        assert.ok(bounds.left >= w * 0.039 && bounds.right <= w * 0.961);
+      }
+      const shipBottom = new Vector3(0, 0, SHIP_HULL.min.z)
+        .multiplyScalar(a.ship.scale)
+        .applyQuaternion(a.ship.quaternion)
+        .add(a.ship.position).y;
+      assert.ok(shipBottom > a.station.position.y);
+      assert.ok(projectedBounds(SHIP_HULL, a.ship, w, 800).height > 100);
+    }
+});
+
 test("destination stages project into reserved viewports and preserve intended nose direction", () => {
   for (const width of [1024, 1280, 1440, 1920])
     for (let i = 1; i < 6; i++) {
@@ -42,7 +169,7 @@ test("destination stages project into reserved viewports and preserve intended n
       );
       const nose = new Vector3(0, 0, 1).applyQuaternion(pose.quaternion);
       assert.ok(nose.dot(new Vector3(...stage.nose).normalize()) > 0.999999);
-      assert.ok(pose.scale >= 0.93 && pose.scale <= 0.98);
+      assert.ok(pose.scale >= 1.3 && pose.scale <= 1.37);
       assert.ok(
         stage.anchor[0] > 0.1 &&
           stage.anchor[0] < 0.9 &&

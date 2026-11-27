@@ -2262,9 +2262,16 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
   }
 }
 
+ .hero-cinematic-identity { display: none; }
+
 /* Destination staging reserves space only when the existing desktop canvas/journey is active. */
 @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
   body.space-canvas-active .horizontal-journey--active {
+    /* display:none also removes Home controls from hit testing and keyboard navigation.
+       Identity stays semantic; all original content returns when the canvas is unavailable. */
+    #hero .hero-cinematic-identity { display: block; }
+    #hero .hero-panel { background: transparent; border: 0; box-shadow: none; }
+    #hero .hero-panel__content, #hero .hero-ship-trigger { display: none; }
     :is(#toolkit, #experience) {
       align-self: flex-start;
       margin-top: 108px;
