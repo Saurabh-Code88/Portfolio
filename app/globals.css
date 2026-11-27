@@ -2271,6 +2271,9 @@ body.space-background--fallback .hero-page .hero-ship-trigger { display: none; }
        Identity stays semantic; all original content returns when the canvas is unavailable. */
     #hero .hero-cinematic-identity { display: block; }
     #hero .hero-panel { background: transparent; border: 0; box-shadow: none; }
+    /* The legacy text scrim paints independently of the panel's background. */
+    #hero .hero-panel::before, #hero .hero-panel::after { content: none; display: none; }
+    #hero, #hero .hero, #hero .hero-panel { pointer-events: none; }
     #hero .hero-panel__content, #hero .hero-ship-trigger { display: none; }
     :is(#toolkit, #experience) {
       align-self: flex-start;
