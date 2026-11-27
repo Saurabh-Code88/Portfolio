@@ -1,5 +1,9 @@
 # Scroll-synchronized cinematic journey
 
+> Current desktop presentation: sequential chapters, a signature concealed station return,
+> docked local-axis rotation and a floating professional introduction. See the chapter
+> expedition section below. Historical validation remains attributed to its earlier phase.
+
 ## Authority and architecture audit
 The owner superseded autonomous looping video and circular desktop arrivals.
 The native horizontal journey in `components/horizontal-journey.tsx` remains authoritative:
@@ -196,6 +200,142 @@ lighting toggle samples also include live idle motion and potential shader warm-
 captures, full-angle close-ups and the final Contact contrast adjustment were inspected.
 No push, merge or deployment was performed.
 
+## Chapter expedition
+
+The existing section order and IDs remain hero, toolkit, projects, research, experience,
+contact. `content/expedition.ts` pairs clear professional labels/descriptions with configurable
+cinematic chapter names. `ChapterNavigation` replaces only the visible desktop tabs: Begin
+Journey, Next Chapter, a discreet previous link, current chapter and native progress indicator.
+The original mobile/tablet/reduced-motion/canvas-disabled navigation remains. A direct
+`?ship=off#toolkit` link offers the portfolio without the cinematic animation. Anchors still
+use the existing controller/history, measured section targets and shared active-section provider.
+No section IDs, ordinary spline controls, chronological video mapping, seek queue or assets change.
+
+Return is an explicit idle/departing/hyperspace/preparing/approach state machine sampled by
+the existing FlightShip `useFrame`; it is still the sole ship transform owner. Departure
+captures the displayed automatic and user quaternion, consumes the nested user rotation and
+recedes through a banked XYZ spline. A pointer-transparent CSS/SVG veil and 44 radial lines
+obscure the reset without a new renderer or global animation loop. The ship remains under
+the veil; no extra light, bloom, shadow or engine material modification is introduced.
+The existing engine-power signal damps toward .95 during departure/transit and .55 on approach.
+
+Timing targets: departure700ms, hyperspace650ms, preparation250ms minimum/2200ms maximum,
+clockwise two-leg approach1800ms: nominal3.4s, bounded5.35s excluding stalled frames. The
+fully opaque preparation phase invokes the existing controller's explicit instant navigation;
+the existing horizontal track owner applies its measured target directly. Intermediate panels
+and video are never visibly played backward. The unchanged media scheduler seeks Home as a
+consequence of that position. Preparation checks the Home position and paused video frame;
+on timeout, Home's frame-zero poster covers stale footage until the decoder catches up or
+the user leaves Home. The approach follows upper-left, upper-right and lower-right XYZ
+controls into the existing enlarged docking anchor, with quaternion endpoints preserved.
+
+Repeated return requests are ignored. Skip/Escape and resize return directly to Home;
+wheel/scrollbar/scroll-key interruption captures the displayed transform into the existing
+manual handoff. Other navigation and history retarget through the same controller. Context
+loss removes effects and invokes the existing readable static fallback. Cleanup removes
+temporary phase attributes, custom properties and controls; no scrolling lock is installed.
+The phase store is separate from Three.js so mobile navigation does not import the 3D helpers.
+
+Home now uses a44s local +Z axial period with zero levitation/translation. The prior source
+audit established the actual +Z nose/-Z engine convention; both GLBs remain unchanged.
+Ordinary departure inherits the current displayed roll. The signature arrival reaches the
+canonical Home quaternion before the bounded idle envelope resumes. The paused background
+does not follow this ambient rotation. Existing station drag, fitted full-yaw envelope,
+lighting and Home-only station lifecycle remain intact.
+
+The introduction is floating, content-configured text at left4vw/top140px with a bounded
+30vw/380px line width, responsive26-42px name and15px description. It uses localized text
+shadows, no panel/scrim/blur. Only its Begin Journey link accepts pointer events. It presents
+Saurabh as a Full-Stack & AI Developer without altering mobile positioning copy. Toolkit
+regroups only existing technologies into full-stack, AI, and systems/tools categories.
+Projects retain source order/details/architecture and expose repository/demo/case-study links
+outside collapsed details on desktop. Codady is not present in source content and was not
+invented. Research emphasizes the existing objective and findings/limitations; its classical
+baseline result stays unchanged. Experience keeps actual roles, dates, education and the
+existing date-confirmation note. Body copy uses16px/1.65 line-height within the existing
+destination-safe layouts; nested scrolling preserves access to denser content.
+
+The introduction is mounted beside the fixed navigation, outside the translated content
+track. The initial inside-track prototype inherited a132px offset and failed its bounds
+check; no model shrinking was used to fix it. Its bottom is capped above the viewport's
+horizontal midpoint, with compact scrollable typography on short desktop heights. Station
+drag fitting keeps geometry below the ship's lower world-space bound; the fixed introduction
+uses the upper-left region and accepts pointers only on its visible action (or its short-height
+scroll area). Desktop content padding is28px, headings30-42px, and research's objective/venue
+stack vertically so findings are readable sooner. The original tab header becomes a small
+transparent brand at the left HUD margin; chapter controls stay above the models/content.
+
+Implementation inventory:
+- Presentation/data: `content/expedition.ts`, `components/chapter-navigation.tsx`, `components/site-nav.tsx`, `app/globals.css`.
+- Content hierarchy: toolkit/projects/research/experience/contact section components (desktop variants only).
+- Navigation/scene: `components/horizontal-journey.tsx`, `components/section-reveal-controller.tsx`, `components/space/SpaceBackgroundCanvas.tsx`, `components/space/SpaceBackground.tsx`.
+- Helpers: `lib/chapterNavigation.ts`, `lib/stationReturn.ts`, `lib/stationReturnStatus.ts`, `lib/shipStaging.ts`.
+- Tests/tooling: `lib/chapterJourney.test.mts`, existing cinematic tests, npm test command, `scripts/validate-chapters.py`, `scripts/validate-chapters-production.py`.
+- Delivery: this plan, `PROGRESS.md`, and captured validation evidence.
+
+### Chapter validation
+
+Final focused and regression suite:42 tests passed (six new chapter/return tests), with zero
+skips. These cover chapter order/neighbor boundaries, supported technology provenance, desktop
+capability/reduced-motion gate, phase timing/readiness/timeout, cancellation and phase-edge
+cleanup, displayed-quaternion departure continuity, two-leg XYZ continuity and44s Home roll
+with invariant docking position/nose. The existing video scheduler and flight tests still pass.
+
+Edge controller/layout validation exited0 at1024/1280/1440/1920px. Raster draws were suppressed
+only for that controller run; real geometry/layout measurements, event handling and DOM state
+were retained. It passed repeated return/Skip, wheel interruption, retargeting, resize, changing
+reduced motion during a return, media failure timeout, context-loss fallback, keyboard/Previous
+Chapter, history back/forward, rapid ordinary retarget, forward/reverse off-anchor idle, deep
+links,375/768px, reduced motion and canvas-disabled content. Intro/header/content bounds passed
+all four desktop widths. See [controller results](./validation/chapters/stress.json) and
+[layout results](./validation/chapters/layout.json).
+
+The full-render native run completed all24 destination checks, Home rotation with unchanged
+paused video time, raycast station dragging and a complete return capture. That invocation
+exited1 at its final development fallback-route navigation timeout; it is not an overall pass.
+A fresh final six-destination capture run exited0 after the desktop readability adjustments.
+Its screenshots were inspected for intro/model separation, clean Home, destination staging,
+readable engineering content and navigation placement. See [capture results](./validation/chapters/captures.json),
+[Home](./validation/chapters/home.png), [Toolkit](./validation/chapters/toolkit.png),
+[Projects](./validation/chapters/projects.png), [Research](./validation/chapters/research.png),
+[Experience](./validation/chapters/experience.png) and [Contact](./validation/chapters/contact.png).
+Earlier harness attempts also exposed an initial geometry-readiness race after reload and
+the need to isolate further navigation from a deliberately lost renderer. The final checks
+wait for published geometry and verify static fallback after loss before reloading that case.
+
+Final release gates: lint exit0, typecheck exit0, test exit0 (42 passed), production build exit0.
+Development preview was stopped before building. Reported homepage first-load JavaScript is
+253kB versus the prior252kB (rounded build values); shared JS remains103kB. No dependency,
+renderer, light, shadow pass or global animation loop was added. SVG stars mount only during
+the return and are removed afterward; phase subscriptions update React only at phase edges.
+
+The built-site smoke exited0 with zero page/console errors. All five real Begin/Next links,
+the real Return to Station button, Home focus restoration, star/control cleanup, nested
+Projects scrolling,375/768px, normal-URL reduced motion and canvas-disabled content passed.
+The explicit no-flight reading link was clicked and verified as a real display-mode navigation;
+it deliberately bypasses the flight interceptor, while normal chapter anchors retain it.
+Home video time was0 before/after a four-second stationary hold. See
+[production results](./validation/chapters/production.json),
+[production Home return](./validation/chapters/production-home-return.png), and
+[complete production return recording](./validation/chapters/production-return.webm).
+
+The native recording is120,722 bytes,34 observed frames over35.11s including click preparation
+and an arrival hold; independent full FFmpeg decode exited0. Phase-edge timestamps measure
+the actual active transition at5.692s: departure817ms, hyperspace828ms, preparation845ms,
+approach3202ms. This is slower than the nominal3.4s under severely limited software rendering;
+the movie preserves observed timestamps rather than speeding them up. Contact-sheet and
+final-frame inspection confirm the concealed reset, radial transit, XYZ approach and restored
+enlarged docking composition with the floating introduction.
+
+The short production Home sample contains three positive frame intervals: median1783.2ms,
+p951866.6ms on SwiftShader/software decode. It is not comparable to earlier different-scene
+samples, and cannot establish a hardware performance regression or physical-GPU smoothness.
+Full-speed visual tuning and hardware frame pacing remain owner review items. The existing
+bounded idle delta makes ambient roll slower under this software load. Short desktop heights
+use a compact scrollable introduction rather than shrinking the models; dense content keeps
+native nested scrolling. Existing video seek latency and the prior wide/short Home size cap
+remain unchanged. No push, merge or deployment was performed.
+
 
 Changed implementation files: `lib/shipStaging.ts` (typed staging/idle helpers),
 `lib/cinematicFlight.ts` (profile geometry/approaches),
@@ -252,7 +392,7 @@ Evidence: [machine-readable browser results](./validation/cinematic-validation.j
 [Contact](./validation/cinematic-contact.png). Captures are native 1280x800; the final
 composition was inspected for docking, station absence, ship visibility and text overlap.
 
-## Current refinement: idle recovery and cinematic Home
+## Prior refinement: idle recovery and cinematic Home (4c4ffc1)
 
 Root cause: the previous stable-stop gate required alignment within 1.1 horizontal pixels.
 Ordinary manual arrivals remained in travel state; the same gate also prevented pending

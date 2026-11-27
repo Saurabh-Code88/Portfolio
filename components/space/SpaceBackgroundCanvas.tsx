@@ -1,6 +1,7 @@
 "use client";
 import { DESTINATION_STAGES, applyShipIdle, createShipIdle, stageWorldPoint } from "@/lib/shipStaging";
 import { stationDeparture } from "@/lib/backgroundJourney";
+import { advanceStationReturn, cancelStationReturn, canStartStationReturn, createStationReturn, returnDeparture, stationApproach, sampleStationApproach, stationReturnStatus, RETURN_TIMING } from "@/lib/stationReturn";
 
 import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { createShipArrival, updateShipArrival } from "@/lib/shipArrival";
@@ -266,6 +267,18 @@ function FlightShip({
   const cinematicPose = useMemo(createCinematicPose, []);
   const cinematicTarget = useMemo(createCinematicPose, []);
   const stagingIdle = useRef(createShipIdle());
+  const returning = useRef(createStationReturn());
+  const returnPaths = useRef<{departure: CinematicSegment; approach: ReturnType<typeof stationApproach> | null} | null>(null);
+  const cancelReturn = useCallback(() => {
+    const video=document.querySelector<HTMLVideoElement>(".space-background video");
+    if(returning.current.reset&&video&&(video.seeking||video.currentTime>.1)) document.body.dataset.returnPoster="true";
+    cancelStationReturn(returning.current);
+    returnPaths.current=null;
+    stationReturnStatus.publish("idle");
+    document.body.removeAttribute("data-station-return");
+    document.documentElement.style.removeProperty("--return-opacity");
+    document.documentElement.style.removeProperty("--return-stars");
+  },[]);
   const arrival = useRef(createShipArrival());
   const shipHull = useRef(SHIP_HULL.clone());
   const stationHull = useRef(STATION_HULL.clone());
@@ -381,6 +394,7 @@ function FlightShip({
       ...(stationUserGroup.current ? [{ key: "station" as const, root: stationUserGroup.current }] : []),
     ];
     const hitModel = (event: PointerEvent): ModelKey | null => {
+      if(returning.current.phase!=="idle") return null;
       const bounds = gl.domElement.getBoundingClientRect();
       if (!bounds.width || !bounds.height || event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return null;
       normalizedPointer.set(
@@ -517,11 +531,19 @@ function FlightShip({
     const clearFlightLayer = () => {
       document.body.classList.remove("orbit-flight-active", "orbit-flight-behind");
     };
-    const requestFlight = (sectionId: string, speed = 1) => {
+    const requestFlight = (sectionId: string, speed = 1, instant = false, returnReset = false) => {
+      if (!returnReset) cancelReturn();
       const sectionIndex = FLIGHT_SECTION_IDS.indexOf(sectionId as (typeof FLIGHT_SECTION_IDS)[number]);
       if (sectionIndex < 0) return;
       const targetProgress = stops.current[sectionIndex] ?? 0;
       if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+      if(instant) {
+        scrollFrame.current=null;navFlight.current=null;manualHandoff.current=null;cinematicNavigation.current=null;
+        scrollVelocity.current=0;stagingIdle.current=createShipIdle();
+        window.scrollTo({top:targetProgress*Math.max(1,document.documentElement.scrollHeight-window.innerHeight),behavior:"instant"});
+        window.dispatchEvent(new Event("portfolio:journey-snap"));
+        return;
+      }
       returnToPark.current = null;
       const viewportWidth = Math.max(1, window.innerWidth);
       const viewportHeight = Math.max(1, window.innerHeight);
@@ -536,7 +558,7 @@ function FlightShip({
         : Math.max(0.001, stops.current[1] ?? 0.15);
       const distanceRatio = Math.max(0.35, Math.min(1, Math.abs(targetProgress - from) / sectionSpan));
       const pacing = desktopJourney.current ? 1.65 : 1;
-      const travelDuration = TRAVEL_DURATION * pacing * distanceRatio / Math.max(0.4, speed);
+      const travelDuration = instant ? 1 : TRAVEL_DURATION * pacing * distanceRatio / Math.max(0.4, speed);
       const isHero = sectionId === "hero";
       const now = performance.now();
       navFlight.current = {
@@ -558,7 +580,7 @@ function FlightShip({
         fromDepth,
         fromQuaternion: currentRotation,
         fromScale: group.current?.scale.x ?? PARK_SCALE,
-        fromScrollVelocity: scrollVelocity.current,
+        fromScrollVelocity: instant ? 0 : scrollVelocity.current,
         lastScrollTop: window.scrollY,
         lastScrollAt: now,
         journeyFrom: desktopJourney.current ? (journeyRevealPosition.getSnapshot()?.x ?? 0)/Math.max(1,desktopJourney.current.horizontalDistance) : undefined,
@@ -598,6 +620,8 @@ function FlightShip({
       if (!(target instanceof Element)) return;
       const link = target.closest<HTMLAnchorElement>("a[href]");
       if (!link || link.target || link.hasAttribute("download")) return;
+      // This explicit escape changes display mode via a real navigation, not a flight.
+      if (link.classList.contains("chapter-direct")) return;
       const url = new URL(link.href, window.location.href);
       if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
       const isHomeReturn = link.classList.contains("site-brand") && window.location.pathname === "/" && window.scrollY > 0 && !url.hash;
@@ -611,14 +635,20 @@ function FlightShip({
       requestFlight(sectionId);
     };
     const handleProgrammaticFlight = (event: Event) => {
-      const detail = (event as CustomEvent<{ sectionId?: string; speed?: number }>).detail;
-      if (detail?.sectionId) requestFlight(detail.sectionId, detail.speed ?? 1);
+      const detail = (event as CustomEvent<{ sectionId?: string; speed?: number; instant?: boolean; returnReset?: boolean }>).detail;
+      if (detail?.sectionId) requestFlight(detail.sectionId, detail.speed ?? 1, detail.instant, detail.returnReset);
     };
     const handlePopState = () => {
       const sectionId = window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : "hero";
       if (FLIGHT_SECTION_IDS.includes(sectionId as (typeof FLIGHT_SECTION_IDS)[number])) requestFlight(sectionId);
     };
     const cancelFlight = () => {
+      if (returning.current.phase!=="idle" && group.current) {
+        manualHandoff.current={progress:(journeyRevealPosition.getSnapshot()?.x??0)/Math.max(1,desktopJourney.current?.horizontalDistance??1),position:group.current.position.clone(),quaternion:group.current.quaternion.clone(),scale:group.current.scale.x};
+        handoffRestElapsed.current=0;
+        stagingIdle.current=createShipIdle();
+        cancelReturn();
+      }
       if (navFlight.current && group.current && desktopJourney.current) {
         const geometry = desktopJourney.current;
         manualHandoff.current = {
@@ -665,11 +695,36 @@ function FlightShip({
       if (event.clientX >= window.innerWidth - 18) cancelFlight();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      if(event.target instanceof Element && event.target.closest(".station-return__controls")) return;
+      if(event.key==="Escape" && returning.current.phase!=="idle") { skipReturn(); return; }
       if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) cancelFlight();
     };
+    const beginReturn = () => {
+      if (returning.current.phase!=="idle") return;
+      if (!desktopJourney.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { requestFlight("hero",1,true); return; }
+      if (!group.current || !canStartStationReturn(returning.current.phase,getFlightSectionId(displayedProgress.current,stops.current))) return;
+      if(scrollFrame.current!==null) cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current=null;navFlight.current=null;manualHandoff.current=null;
+      const from={position:group.current.position.clone(),quaternion:group.current.quaternion.clone(),scale:group.current.scale.x};
+      if(shipUserGroup.current) {from.quaternion.multiply(shipUserGroup.current.quaternion);shipUserGroup.current.quaternion.identity();}
+      rotationMotion.current.ship.velocity.set(0,0,0);rotationMotion.current.ship.pointerId=null;
+      returnPaths.current={departure:returnDeparture(from),approach:null};
+      returning.current={phase:"departing",started:performance.now(),reset:false};
+      document.body.dataset.stationReturn="departing";
+      stationReturnStatus.publish("departing");
+    };
+    const skipReturn = () => { if(returning.current.phase==="idle") return; document.body.dataset.returnPoster="true";cancelReturn(); stagingIdle.current=createShipIdle(); window.history.pushState({},"","#hero"); requestFlight("hero",1,true); document.querySelector<HTMLElement>(".chapter-introduction h1")?.focus({preventScroll:true}); };
+    const returnMotion=window.matchMedia("(prefers-reduced-motion: reduce)");
+    const motionChanged=()=>{if(returnMotion.matches) skipReturn();};
+    const contextLost = () => { skipReturn(); window.dispatchEvent(new Event("portfolio:canvas-failure")); };
     document.addEventListener("click", handleClick, true);
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("portfolio:flight-to", handleProgrammaticFlight);
+    window.addEventListener("portfolio:return-station",beginReturn);
+    window.addEventListener("portfolio:return-skip",skipReturn);
+    window.addEventListener("resize",skipReturn);
+    gl.domElement.addEventListener("webglcontextlost",contextLost);
+    returnMotion.addEventListener("change",motionChanged);
     window.addEventListener("wheel", cancelFlight, { passive: true });
     window.addEventListener("touchstart", cancelFlight, { passive: true });
     window.addEventListener("keydown", handleKeyDown);
@@ -678,6 +733,13 @@ function FlightShip({
       document.removeEventListener("click", handleClick, true);
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("portfolio:flight-to", handleProgrammaticFlight);
+      window.removeEventListener("portfolio:return-station",beginReturn);
+      window.removeEventListener("portfolio:return-skip",skipReturn);
+      window.removeEventListener("resize",skipReturn);
+      gl.domElement.removeEventListener("webglcontextlost",contextLost);
+      returnMotion.removeEventListener("change",motionChanged);
+      cancelReturn();
+      document.body.removeAttribute("data-return-poster");
       window.removeEventListener("wheel", cancelFlight);
       window.removeEventListener("touchstart", cancelFlight);
       window.removeEventListener("keydown", handleKeyDown);
@@ -693,7 +755,7 @@ function FlightShip({
         phase: "idle",
       });
     };
-  }, [camera, dockQuat, flightScreenVelocity, group]);
+  }, [camera, dockQuat, flightScreenVelocity, group, cancelReturn, gl]);
 
   useEffect(() => {
     const handlePointer = (event: PointerEvent) => {
@@ -960,6 +1022,41 @@ function FlightShip({
         stagingIdle.current.elapsed=cinematicDiagnostics.inspectIdleAngle/(Math.PI*2)*DESTINATION_STAGES[stopIndex].axialPeriod;
       }
       applyShipIdle(stagingIdle.current, stableStop && resting.blend>=1 && !manualHandoff.current ? stopIndex : -1, delta, cinematicPose, idleRotation);
+      const returningState=returning.current;
+      if(returningState.phase!=="idle" && returnPaths.current) {
+        const video=document.querySelector<HTMLVideoElement>(".space-background video");
+        const ready=journeyPosition.x<1 && (!video?.getAttribute("src") || (!video.seeking && video.readyState>=2 && video.currentTime<.1));
+        const previous=returningState.phase;
+        advanceStationReturn(returningState,now,ready);
+        if(returningState.phase==="preparing" && !returningState.reset) {
+          returningState.reset=true;
+          window.history.pushState({},"","#hero");
+          window.dispatchEvent(new CustomEvent("portfolio:flight-to",{detail:{sectionId:"hero",instant:true,returnReset:true}}));
+        }
+        if(returningState.phase==="approach" && previous!=="approach") {
+          if(!ready) document.body.dataset.returnPoster="true";
+          returnPaths.current.approach=stationApproach(path.anchors[0]);
+        }
+        const phase=returningState.phase;
+        const elapsed=now-returningState.started;
+        const opacity=phase==="departing" ? smoothstep(elapsed/RETURN_TIMING.departure)*.94 : phase==="hyperspace" ? .94+.06*smoothstep(elapsed/RETURN_TIMING.hyperspace) : phase==="preparing" ? 1 : phase==="approach" ? 1-smoothstep(Math.min(1,elapsed/(RETURN_TIMING.approach*.75))) : 0;
+        document.documentElement.style.setProperty("--return-opacity",String(opacity));
+        document.documentElement.style.setProperty("--return-stars",String(phase==="hyperspace"||phase==="preparing"?.65:phase==="approach"?opacity*.65:0));
+        if(document.body.dataset.stationReturn!==phase) document.body.dataset.stationReturn=phase;
+        stationReturnStatus.publish(phase);
+        if(phase==="departing") sampleCinematicSegment(returnPaths.current.departure,elapsed/RETURN_TIMING.departure,cinematicPose);
+        else if(phase==="hyperspace"||phase==="preparing") sampleCinematicSegment(returnPaths.current.departure,1,cinematicPose);
+        else if(phase==="approach" && returnPaths.current.approach) sampleStationApproach(returnPaths.current.approach,elapsed/RETURN_TIMING.approach,cinematicPose);
+        else {
+          cinematicPose.position.copy(path.anchors[0].position);cinematicPose.quaternion.copy(path.anchors[0].quaternion);cinematicPose.scale=path.anchors[0].scale;
+          stagingIdle.current=createShipIdle();cancelReturn();
+          document.querySelector<HTMLElement>(".chapter-introduction h1")?.focus({preventScroll:true});
+        }
+      }
+      if(document.body.hasAttribute("data-return-poster")) {
+        const video=document.querySelector<HTMLVideoElement>(".space-background video");
+        if(coordinate>.08 || (video && !video.seeking && video.currentTime<.1)) document.body.removeAttribute("data-return-poster");
+      }
       priorRestBlend.current = resting.blend;
       priorStagingProgress.current = sharedProgress;
       group.current.position.copy(cinematicPose.position);
@@ -1003,7 +1100,9 @@ function FlightShip({
         journey.documentDistance;
       flightScreenVelocity.set(0, 0);
       warp.current = 0;
-      enginePower.current = atStop ? 0.55 : 0.85;
+      enginePower.current = returning.current.phase!=="idle"
+        ? MathUtils.damp(enginePower.current,returning.current.phase==="approach"?.55:.95,4,delta)
+        : atStop ? 0.55 : 0.85;
       if (trail.current) trail.current.visible = false;
       const destinationIndex = navigation
         ? FLIGHT_SECTION_IDS.indexOf(navigation.sectionId)

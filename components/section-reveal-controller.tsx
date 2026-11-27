@@ -7,7 +7,7 @@ import { getHorizontalJourneyScrollTarget, journeyRevealPosition } from "@/lib/h
 import { sectionArrivalProgress, sectionRevealStyle } from "@/lib/sectionReveal";
 import { fluidRevealStyle } from "@/lib/journeyMotion";
 
-const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .research-panel, .experience-entry, .education-column, .contact-links";
+const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .chapter-project-links, .research-panel, .experience-entry, .education-column, .contact-links";
 
 function revealTargets(sectionId: string) {
   const section = document.getElementById(sectionId);
@@ -266,9 +266,10 @@ export function SectionRevealController() {
     };
     const fallbackFlight = (event: Event) => {
       if (document.body.classList.contains("space-canvas-active")) return;
-      const sectionId = (event as CustomEvent<{ sectionId?: string }>).detail?.sectionId;
+      const detail = (event as CustomEvent<{ sectionId?: string; instant?: boolean }>).detail;
+      const sectionId = detail?.sectionId;
       const target = sectionId ? document.getElementById(sectionId) : null;
-      if (target) scrollToSection(target, reducedMotion.matches ? 0 : 420);
+      if (target) { scrollToSection(target, reducedMotion.matches || detail?.instant ? 0 : 420); if(detail?.instant) window.dispatchEvent(new Event("portfolio:journey-snap")); }
     };
     const fallbackPopState = () => {
       if (document.body.classList.contains("space-canvas-active")) return;

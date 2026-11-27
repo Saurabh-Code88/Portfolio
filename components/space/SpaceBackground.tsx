@@ -97,11 +97,14 @@ function EnabledSpaceBackground() {
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const updateMode = () => setMode(resolveMode());
+    const canvasFailure = () => setMode("fallback");
     updateMode();
     window.addEventListener("resize", updateMode, { passive: true });
+    window.addEventListener("portfolio:canvas-failure",canvasFailure);
     reducedMotion.addEventListener("change", updateMode);
     return () => {
       window.removeEventListener("resize", updateMode);
+      window.removeEventListener("portfolio:canvas-failure",canvasFailure);
       reducedMotion.removeEventListener("change", updateMode);
     };
   }, []);

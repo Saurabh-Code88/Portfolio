@@ -221,7 +221,7 @@ test("approach headings agree with each destination's resting nose", () => {
     );
   }
 });
-test("idle composes local axial rotation, fades in, excludes Home and holds no travel clock", () => {
+test("idle composes local axial rotation, fades in and holds no travel clock", () => {
   const state = createShipIdle(),
     rotation = new Quaternion();
   const base = restingPose(1, 1.6, 48),
@@ -253,7 +253,7 @@ test("idle composes local axial rotation, fades in, excludes Home and holds no t
   applyShipIdle(state, -1, 1 / 60, pose, rotation);
   assert.equal(state.weight, 0);
   applyShipIdle(state, 0, 1 / 60, pose, rotation);
-  assert.equal(state.angle, 0);
+  assert.ok(state.angle > 0);
 });
 const panels = CINEMATIC_ANCHORS.map((a, i) => ({
   id: a.id,

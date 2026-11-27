@@ -1,4 +1,5 @@
 import { toolkitCopy } from "@/content/toolkit";
+import { engineeringGroups, expeditionCopy } from "@/content/expedition";
 
 function ToolIcon({ name, index }: { name: string; index: number }) {
   const glyph = name
@@ -22,11 +23,11 @@ export function ToolkitSection() {
       <div className="section-heading">
         <div>
           <p className="section-kicker">{toolkitCopy.eyebrow}</p>
-          <h2 id="toolkit-heading">{toolkitCopy.heading}</h2>
+          <h2 id="toolkit-heading"><span className="portfolio-original">{toolkitCopy.heading}</span><span className="chapter-only">{expeditionCopy.toolkitHeading}</span></h2>
         </div>
-        <p>{toolkitCopy.intro}</p>
+        <p><span className="portfolio-original">{toolkitCopy.intro}</span><span className="chapter-only">{expeditionCopy.toolkitIntro}</span></p>
       </div>
-      <div className="toolkit-groups">
+      <div className="toolkit-groups portfolio-original">
         {toolkitCopy.groups.map((group, groupIndex) => (
           <section className="toolkit-group" key={group.name} aria-labelledby={`toolkit-group-${groupIndex}`}>
             <div className="toolkit-group__heading">
@@ -48,6 +49,12 @@ export function ToolkitSection() {
             </ul>
           </section>
         ))}
+      </div>
+      <div className="toolkit-groups chapter-only">
+        {engineeringGroups.map(group=><section className="toolkit-group" key={group.name}>
+          <div className="toolkit-group__heading"><div><h3>{group.name}</h3><p>{group.note}</p></div></div>
+          <ul className="tag-list">{group.tools.map(tool=><li key={tool}>{tool}</li>)}</ul>
+        </section>)}
       </div>
     </section>
   );

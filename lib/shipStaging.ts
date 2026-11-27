@@ -29,7 +29,7 @@ export const DESTINATION_STAGES = [
     nose: [0, 1, 0],
     levitation: 0,
     period: 6,
-    axialPeriod: 34,
+    axialPeriod: 44,
     bank: 0,
     profile: "docked",
     departure: [0.6, 0.3, 16],
@@ -154,7 +154,7 @@ export function applyShipIdle(
   pose: CinematicPose,
   rotation: Quaternion,
 ) {
-  if (index <= 0) {
+  if (index < 0) {
     state.index = -1;
     state.elapsed = 0;
     state.weight = 0;

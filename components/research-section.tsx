@@ -1,5 +1,6 @@
 import { research, researchCopy } from "@/content/research";
 import { siteCopy } from "@/content/site";
+import { expeditionCopy } from "@/content/expedition";
 
 export function ResearchSection() {
   return (
@@ -15,7 +16,7 @@ export function ResearchSection() {
           <div className="research-panel__header">
             <div>
               <h3>{paper.title}</h3>
-              <p>{paper.summary}</p>
+              <span className="chapter-only research-objective">{expeditionCopy.objective}</span><p>{paper.summary}</p>
             </div>
             <p className="research-venue">
               {siteCopy.acceptedAtPrefix} {paper.venue}, {paper.year}
@@ -23,7 +24,7 @@ export function ResearchSection() {
           </div>
           <div className="research-panel__details">
             <div>
-              <h4>{researchCopy.findingLabel}</h4>
+              <h4><span className="portfolio-original">{researchCopy.findingLabel}</span><span className="chapter-only">{expeditionCopy.outcome}</span></h4>
               <p>{paper.finding}</p>
             </div>
             <div>
