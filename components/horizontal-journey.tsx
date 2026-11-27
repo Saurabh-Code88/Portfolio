@@ -110,6 +110,9 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
     };
 
     const onScroll = () => requestSync();
+    // Explicit instant navigation (concealed return/skip) uses the same measured track owner.
+    const onInstantNavigation = () => { if(frame) cancelAnimationFrame(frame); displayedX=null; syncTrack(performance.now()); };
+    window.addEventListener("portfolio:journey-snap",onInstantNavigation);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", measure, { passive: true });
     media.addEventListener("change", measure);
@@ -122,6 +125,7 @@ export function HorizontalJourney({ children }: { children: React.ReactNode }) {
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("portfolio:journey-snap",onInstantNavigation);
       window.removeEventListener("resize", measure);
       media.removeEventListener("change", measure);
       resizeObserver?.disconnect();

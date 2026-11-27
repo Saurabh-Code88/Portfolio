@@ -9,7 +9,7 @@
     "check:lighthouse": "npm run build && lhci autorun",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test content/projects.test.mts lib/mcp-handler.test.mts lib/activeSection.test.mts lib/manualFlight.test.mts lib/sectionReveal.test.mts lib/backgroundJourney.test.mts lib/cockpitTelemetry.test.mts lib/scrollOrbit.test.mts lib/journeyMotion.test.mts",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test content/projects.test.mts content/technologies.test.mts lib/mcp-handler.test.mts lib/activeSection.test.mts lib/manualFlight.test.mts lib/sectionReveal.test.mts lib/backgroundJourney.test.mts lib/cockpitTelemetry.test.mts lib/scrollOrbit.test.mts lib/journeyMotion.test.mts lib/cinematicJourney.test.mts lib/chapterJourney.test.mts",
     "format": "prettier --write ."
   },
   "dependencies": {

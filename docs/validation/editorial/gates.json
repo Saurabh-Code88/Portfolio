@@ -1,0 +1,45 @@
+{
+  "lint": {
+    "exitCode": 0
+  },
+  "typecheck": {
+    "exitCode": 0
+  },
+  "tests": {
+    "exitCode": 0,
+    "passed": 45,
+    "failed": 0,
+    "skipped": 0
+  },
+  "build": {
+    "exitCode": 0,
+    "staticPages": 18,
+    "homepageFirstLoadJS": "253 kB"
+  },
+  "svgAssets": {
+    "count": 16,
+    "bytes": 40856,
+    "directoryBytesWithLicensesAndProvenance": 54633
+  },
+  "capture": {
+    "completed": true,
+    "exitCode": "not retained across interruption",
+    "pageErrors": [],
+    "viewport": [
+      1280,
+      800
+    ],
+    "renderer": "Edge SwiftShader, full raster draws"
+  },
+  "priorAttempts": {
+    "tests": "one formatting-sensitive source assertion failed; replaced with content invariants; final suite passes",
+    "browser": "development server timeout; final geometry/interaction checks moved to production"
+  },
+  "productionBrowser": {
+    "exitCode": 0,
+    "checks": 12,
+    "pageErrors": [],
+    "consoleErrors": [],
+    "mode": "controller/layout; raster draws suppressed"
+  }
+}

@@ -1,0 +1,207 @@
+{
+  "renderer": "Edge SwiftShader; software decode",
+  "mode": "controller only; raster draws suppressed",
+  "checks": [],
+  "poses": [
+    {
+      "width": 1024,
+      "chapter": 1,
+      "rect": {
+        "x": 20.0628662109375,
+        "y": 108,
+        "width": 921.59375,
+        "height": 420
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 2,
+      "rect": {
+        "x": 317.563232421875,
+        "y": 100,
+        "width": 645.109375,
+        "height": 600
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 3,
+      "rect": {
+        "x": 51.077392578125,
+        "y": 100,
+        "width": 634.875,
+        "height": 600
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 4,
+      "rect": {
+        "x": 19.93701171875,
+        "y": 108,
+        "width": 921.59375,
+        "height": 420
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 5,
+      "rect": {
+        "x": 317.4375,
+        "y": 232.40625,
+        "width": 645.109375,
+        "height": 303.171875
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 1,
+      "rect": {
+        "x": 80,
+        "y": 108,
+        "width": 1152,
+        "height": 420
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 2,
+      "rect": {
+        "x": 396.796875,
+        "y": 100,
+        "width": 806.390625,
+        "height": 600
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 3,
+      "rect": {
+        "x": 64,
+        "y": 100,
+        "width": 793.59375,
+        "height": 600
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 4,
+      "rect": {
+        "x": 80,
+        "y": 108,
+        "width": 1152,
+        "height": 420
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 5,
+      "rect": {
+        "x": 396.796875,
+        "y": 254.609375,
+        "width": 806.390625,
+        "height": 258.78125
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 1,
+      "rect": {
+        "x": 160.065185546875,
+        "y": 108,
+        "width": 1280,
+        "height": 420
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 2,
+      "rect": {
+        "x": 446.53662109375,
+        "y": 100,
+        "width": 907.1875,
+        "height": 600
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 3,
+      "rect": {
+        "x": 71.86962890625,
+        "y": 100,
+        "width": 892.796875,
+        "height": 600
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 4,
+      "rect": {
+        "x": 159.93505859375,
+        "y": 108,
+        "width": 1280,
+        "height": 420
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 5,
+      "rect": {
+        "x": 446.40625,
+        "y": 252.359375,
+        "width": 907.1875,
+        "height": 263.28125
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 1,
+      "rect": {
+        "x": 400.06591796875,
+        "y": 108,
+        "width": 1520,
+        "height": 380.28125
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 2,
+      "rect": {
+        "x": 595.3349609375,
+        "y": 100,
+        "width": 1209.59375,
+        "height": 600
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 3,
+      "rect": {
+        "x": 95.8681640625,
+        "y": 100,
+        "width": 1190.390625,
+        "height": 600
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 4,
+      "rect": {
+        "x": 399.93408203125,
+        "y": 108,
+        "width": 1520,
+        "height": 420
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 5,
+      "rect": {
+        "x": 595.203125,
+        "y": 252.359375,
+        "width": 1209.59375,
+        "height": 263.28125
+      }
+    }
+  ]
+}

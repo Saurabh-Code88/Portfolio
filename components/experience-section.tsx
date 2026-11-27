@@ -1,5 +1,6 @@
 import { certifications, education, experience, experienceCopy } from "@/content/experience";
 import { siteCopy } from "@/content/site";
+import { expeditionCopy } from "@/content/expedition";
 
 export function ExperienceSection() {
   return (
@@ -7,7 +8,7 @@ export function ExperienceSection() {
       <div className="section-heading">
         <div>
           <p className="section-kicker">{siteCopy.experienceEyebrow}</p>
-          <h2 id="experience-heading">{siteCopy.experienceHeading}</h2>
+          <h2 id="experience-heading"><span className="portfolio-original">{siteCopy.experienceHeading}</span><span className="chapter-only">{expeditionCopy.experience}</span></h2>
         </div>
       </div>
 

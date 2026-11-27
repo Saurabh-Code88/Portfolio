@@ -1,4 +1,8 @@
-﻿# Cinematic redesign architecture audit
+> Current direction: scroll-synchronized chronological video and true 3D desktop splines.
+> The six-region and autonomous-loop directions are superseded.
+> See [the current journey plan](./INTERSTELLAR_JOURNEY_PLAN.md).
+
+# Cinematic redesign architecture audit
 
 ## Existing architecture
 - The homepage mounts one fixed, pointer-transparent `SpaceBackground` behind semantic page sections; its optional React Three Fiber canvas renders the ship, station, stars, lighting, environment, streaks, and bloom together.

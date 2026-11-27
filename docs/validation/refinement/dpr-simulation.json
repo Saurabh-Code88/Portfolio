@@ -1,0 +1,152 @@
+{
+  "mode": "isolated built-in development FPS threshold simulation at device DPR1.25; raster draws suppressed; real canvas backing ratios and lifecycle",
+  "qualityEvents": [
+    "[station] quality reduced after sustained low FPS (20.0 FPS); station remains mounted {userRotation: Array(4)}",
+    "[station] quality restored after sustained recovery (60.0 FPS); station remains mounted {userRotation: Array(4)}"
+  ],
+  "lifecycle": [
+    "[station] mounted"
+  ],
+  "samples": [
+    {
+      "ratio": 1,
+      "time": 20608.5
+    },
+    {
+      "ratio": 1,
+      "time": 22007.59999999404
+    },
+    {
+      "ratio": 1,
+      "time": 23558.09999999404
+    },
+    {
+      "ratio": 1,
+      "time": 24946
+    },
+    {
+      "ratio": 1.25,
+      "time": 27252.90000000596
+    },
+    {
+      "ratio": 1.25,
+      "time": 29260.59999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 31363.19999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 33184.69999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 35013.90000000596
+    },
+    {
+      "ratio": 1.25,
+      "time": 36806.19999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 38644.19999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 40452.59999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 42477.69999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 44573.80000001192
+    },
+    {
+      "ratio": 1.25,
+      "time": 46675.80000001192
+    },
+    {
+      "ratio": 1.25,
+      "time": 48772.59999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 50613.69999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 51475.59999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 53322.09999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 55030.19999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 56822.40000000596
+    },
+    {
+      "ratio": 1.25,
+      "time": 58466
+    },
+    {
+      "ratio": 1.25,
+      "time": 60049.59999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 61812.30000001192
+    },
+    {
+      "ratio": 1.25,
+      "time": 63769.80000001192
+    },
+    {
+      "ratio": 1.25,
+      "time": 65805.09999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 67789.5
+    },
+    {
+      "ratio": 1.25,
+      "time": 69536
+    },
+    {
+      "ratio": 1.25,
+      "time": 71472.5
+    },
+    {
+      "ratio": 1.25,
+      "time": 73187.90000000596
+    },
+    {
+      "ratio": 1.25,
+      "time": 75101.59999999404
+    },
+    {
+      "ratio": 1.25,
+      "time": 77018.40000000596
+    },
+    {
+      "ratio": 1.25,
+      "time": 79009
+    },
+    {
+      "ratio": 1.25,
+      "time": 80827.69999998808
+    },
+    {
+      "ratio": 1.25,
+      "time": 82514.5
+    }
+  ]
+}

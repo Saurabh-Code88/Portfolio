@@ -108,7 +108,7 @@ export function ShipModel({
 }: {
   onClick?: () => void;
   onLoad?: () => void;
-  onBounds?: (bounds: { nose: number }) => void;
+  onBounds?: (bounds: { nose: number; box: Box3 }) => void;
   labels?: boolean;
   enginePower?: MutableRefObject<number>;
 }) {
@@ -119,7 +119,7 @@ export function ShipModel({
   const sharedEnginePower = enginePower ?? defaultEnginePower;
   const modelRotation = forwardSign < 0 ? Math.PI : 0;
   useEffect(() => onLoad?.(), [onLoad]);
-  useEffect(() => onBounds?.({ nose: Math.max(0, modelBounds.max.z) }), [modelBounds, onBounds]);
+  useEffect(() => onBounds?.({ nose: Math.max(0, modelBounds.max.z), box: new Box3(modelBounds.min.clone().multiplyScalar(scale), modelBounds.max.clone().multiplyScalar(scale)) }), [modelBounds, onBounds]);
   useEffect(() => () => disposeTexturedScene(model), [model]);
   const nozzles = nozzleOffsets.map(([x, y, z]) => [x, y, z] as const);
 

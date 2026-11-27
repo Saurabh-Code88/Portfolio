@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useActiveSection } from "@/components/active-section-provider";
 import { profile } from "@/content/profile";
 import { cockpitSections } from "@/content/cockpit";
+import { ChapterNavigation } from "@/components/chapter-navigation";
 
 const navigation = cockpitSections.slice(1).map((section) => ({ ...section, href: `/#${section.id}` }));
 
@@ -26,7 +27,7 @@ export function SiteNav() {
   }, [activeId, scrollActiveIntoView]);
 
   return (
-    <header className="site-header">
+    <><header className="site-header">
       <Link className="site-brand" href="/" aria-label={`${profile.name}, home`}>
         <span className="site-brand__seal" aria-hidden="true">SP</span>
         <span>{profile.name}</span>
@@ -51,6 +52,6 @@ export function SiteNav() {
         <Link className="site-header__skip" href="/#toolkit">Skip the flight</Link>
         <Link className="site-header__contact" href="/#contact">Let’s talk <span aria-hidden="true">↗</span></Link>
       </div>
-    </header>
+    </header><ChapterNavigation /></>
   );
 }

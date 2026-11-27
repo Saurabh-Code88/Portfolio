@@ -1,0 +1,22 @@
+[
+    {
+        "title":  "Google Gemini",
+        "hex":  "8E75B2",
+        "source":  "https://gemini.google.com",
+        "aliases":  {
+                        "old":  [
+                                    "Google Bard"
+                                ]
+                    }
+    },
+    {
+        "title":  "LangGraph",
+        "hex":  "1C3C3C",
+        "source":  "https://www.langchain.com/langgraph"
+    },
+    {
+        "title":  "Qiskit",
+        "hex":  "6929C4",
+        "source":  "https://qiskit.org"
+    }
+]

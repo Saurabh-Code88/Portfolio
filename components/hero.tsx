@@ -9,6 +9,7 @@ export function Hero() {
 
   return (
     <section id="hero" className="hero-page" aria-labelledby="hero-heading" data-flight-section="hero">
+      <h1 className="hero-cinematic-identity sr-only">{profile.headline}</h1>
       <div className="hero">
         <div className="hero-panel">
           <div className="hero-starfield" aria-hidden="true">

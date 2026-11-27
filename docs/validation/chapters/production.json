@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "chapters": "all five real Next/Begin link clicks",
+  "return": "real Return to Station button; Home focus and overlay cleanup",
+  "nestedProjects": {
+    "top": 757,
+    "total": 1355,
+    "height": 598
+  },
+  "returnPhases": [
+    {
+      "phase": "departing",
+      "time": 112874.90000000596,
+      "opacity": ""
+    },
+    {
+      "phase": "hyperspace",
+      "time": 113692.29999998212,
+      "opacity": "0.94"
+    },
+    {
+      "phase": "preparing",
+      "time": 114519.90000000596,
+      "opacity": "1"
+    },
+    {
+      "phase": "approach",
+      "time": 115364.79999998212,
+      "opacity": "1"
+    },
+    {
+      "phase": "idle",
+      "time": 118566.79999998212,
+      "opacity": ""
+    }
+  ],
+  "recording": {
+    "frames": 34,
+    "seconds": 35.10620594024658,
+    "bytes": 120722
+  },
+  "homeVideoTime": 0,
+  "pausedHold": true,
+  "samplesMs": [
+    1866.6000000000058,
+    1683.2999999999884,
+    1783.2000000000116
+  ],
+  "medianMs": 1783.2000000000116,
+  "p95Ms": 1866.6000000000058,
+  "renderer": "Edge SwiftShader; software decode; no physical GPU claim",
+  "mobileTabletReducedCanvasDisabled": "passed",
+  "pageErrors": [],
+  "consoleErrors": []
+}
