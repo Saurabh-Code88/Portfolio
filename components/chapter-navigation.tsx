@@ -84,7 +84,7 @@ export function ChapterNavigation() {
         >
           <p className="chapter-introduction__eyebrow">{copy.eyebrow}</p>
           <h1 id="chapter-introduction-heading" tabIndex={-1}>
-            {profile.name}
+            {profile.name}.
           </h1>
           <p className="chapter-introduction__role">{copy.role}</p>
           <p>{copy.description}</p>

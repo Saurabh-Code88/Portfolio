@@ -7,7 +7,7 @@ import { getHorizontalJourneyScrollTarget, journeyRevealPosition } from "@/lib/h
 import { sectionArrivalProgress, sectionRevealStyle } from "@/lib/sectionReveal";
 import { fluidRevealStyle } from "@/lib/journeyMotion";
 
-const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .chapter-project-links, .research-panel, .experience-entry, .education-column, .contact-links";
+const REVEAL_SELECTOR = ".section-heading, .toolkit-group, .project-card, .editorial-project, .chapter-project-links, .research-panel, .experience-entry, .education-column, .contact-links";
 
 function revealTargets(sectionId: string) {
   const section = document.getElementById(sectionId);

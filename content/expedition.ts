@@ -40,7 +40,7 @@ export const chapters = [
 export const expeditionCopy = {
   navigation: "Chapter navigation",
   progress: "Journey progress",
-  begin: "Begin Journey",
+  begin: "Begin Expedition",
   next: "Next Chapter",
   previous: "Previous Chapter",
   return: "Return to Station",
@@ -49,10 +49,10 @@ export const expeditionCopy = {
   returning: "Returning to station",
   preparing: "Preparing the Home environment",
   arriving: "Approaching the station",
-  eyebrow: "Engineer · Builder · Explorer",
-  role: "Full-Stack & AI Developer",
+  eyebrow: "Full-Stack & AI Developer",
+  role: "Engineering intelligent experiences.",
   description:
-    "I build intelligent applications, reliable backend systems and interactive digital experiences.",
+    "I build full-stack applications, intelligent software and reliable backend systems.",
   toolkitHeading: "Full-stack and AI engineering",
   toolkitIntro:
     "From product interfaces and AI workflows to data, delivery and reliable services.",
@@ -64,9 +64,14 @@ export const expeditionCopy = {
 } as const;
 export const engineeringGroups = [
   {
-    name: "Full-stack engineering",
-    note: "Interfaces, APIs and persistent data",
-    tools: ["React", "Node.js", "Express", "FastAPI", "PostgreSQL", "Prisma"],
+    name: "Frontend engineering",
+    note: "Product interfaces and collaborative editing",
+    tools: ["React", "Monaco Editor", "Yjs"],
+  },
+  {
+    name: "Backend and databases",
+    note: "APIs, persistent data and cache-first services",
+    tools: ["Node.js", "Express", "FastAPI", "PostgreSQL", "Redis", "Prisma"],
   },
   {
     name: "AI and machine learning",
@@ -77,16 +82,13 @@ export const engineeringGroups = [
     name: "Systems and developer tools",
     note: "Queues, streaming, collaboration and delivery",
     tools: [
-      "Redis",
       "Bull",
       "Socket.io",
       "SSE",
-      "Yjs",
       "Docker",
       "CI/CD",
       "Playwright",
       "Judge0",
-      "Monaco Editor",
     ],
   },
 ] as const;

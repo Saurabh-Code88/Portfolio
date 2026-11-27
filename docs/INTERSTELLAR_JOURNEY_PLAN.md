@@ -518,3 +518,13 @@ projection is development-only. Existing video seek latency remains outside this
 The 1920x800 Home enlargement cap is intentional. Background video bytes, timing/seek queue,
 original GLBs/materials, content sources and destination spline profiles are unchanged.
 No push, merge or deployment was performed.
+
+## Session 01 editorial presentation
+Desktop content now uses transparent editorial layouts, four source-backed engineering
+capability groups, a shared typed local-SVG registry and structured engineering case studies.
+The floating Home name uses responsive 44–78px typography, constrained to the upper-left
+interaction-safe region. Existing chapter navigation, video seek scheduler, destination
+staging, model assets, lighting, station lifecycle and hyperspace return remain unchanged.
+Only the existing reveal selector gains the new project entry class; no controller is added.
+See [Session 01 implementation and validation](./SESSION01_EDITORIAL.md) for the factual
+content audit, changed sources, icon licensing, evidence and remaining limitations.

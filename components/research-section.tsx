@@ -1,10 +1,15 @@
+import { TechnologyStack } from "@/components/technology-stack";
 import { research, researchCopy } from "@/content/research";
 import { siteCopy } from "@/content/site";
 import { expeditionCopy } from "@/content/expedition";
 
 export function ResearchSection() {
   return (
-    <section className="content-section" id="research" aria-labelledby="research-heading">
+    <section
+      className="content-section"
+      id="research"
+      aria-labelledby="research-heading"
+    >
       <div className="section-heading">
         <div>
           <p className="section-kicker">{siteCopy.researchEyebrow}</p>
@@ -16,7 +21,10 @@ export function ResearchSection() {
           <div className="research-panel__header">
             <div>
               <h3>{paper.title}</h3>
-              <span className="chapter-only research-objective">{expeditionCopy.objective}</span><p>{paper.summary}</p>
+              <span className="chapter-only research-objective">
+                {expeditionCopy.objective}
+              </span>
+              <p>{paper.summary}</p>
             </div>
             <p className="research-venue">
               {siteCopy.acceptedAtPrefix} {paper.venue}, {paper.year}
@@ -24,12 +32,20 @@ export function ResearchSection() {
           </div>
           <div className="research-panel__details">
             <div>
-              <h4><span className="portfolio-original">{researchCopy.findingLabel}</span><span className="chapter-only">{expeditionCopy.outcome}</span></h4>
+              <h4>
+                <span className="portfolio-original">
+                  {researchCopy.findingLabel}
+                </span>
+                <span className="chapter-only">{expeditionCopy.outcome}</span>
+              </h4>
               <p>{paper.finding}</p>
             </div>
             <div>
               <h4>{researchCopy.technologyLabel}</h4>
-              <ul className="tag-list">
+              <div className="chapter-only">
+                <TechnologyStack tools={paper.stack} />
+              </div>
+              <ul className="tag-list portfolio-original">
                 {paper.stack.map((technology) => (
                   <li key={technology}>{technology}</li>
                 ))}

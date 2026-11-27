@@ -1,0 +1,221 @@
+{
+  "mode": "production controller/layout; raster draws suppressed, not a visual GPU test",
+  "checks": [
+    "all six chapter bounds at 1024/1280/1440/1920; transparent surfaces and no section side borders",
+    "Home station raycast pointer access and drag gesture",
+    "five source-backed case studies, disabled absent demos, nested scrolling and native architecture disclosure",
+    "keyboard Next and Previous navigation",
+    "manual forward and reverse journey scrolling",
+    "unchanged Return to Station completes and cleans up",
+    "all 16 local SVG routes return HTTP200",
+    "no runtime icon CDN requests",
+    "375px original navigation and project layout",
+    "768px original navigation and project layout",
+    "normal URL reduced-motion fallback",
+    "canvas-disabled readable fallback"
+  ],
+  "geometry": [
+    {
+      "width": 1024,
+      "chapter": 1,
+      "rect": {
+        "x": 20,
+        "y": 108,
+        "width": 921.59375,
+        "height": 420
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 2,
+      "rect": {
+        "x": 317.4375,
+        "y": 100,
+        "width": 645.109375,
+        "height": 600
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 3,
+      "rect": {
+        "x": 51.203125,
+        "y": 100,
+        "width": 634.875,
+        "height": 600
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 4,
+      "rect": {
+        "x": 20,
+        "y": 108,
+        "width": 921.59375,
+        "height": 420
+      }
+    },
+    {
+      "width": 1024,
+      "chapter": 5,
+      "rect": {
+        "x": 317.4375,
+        "y": 225.3125,
+        "width": 645.109375,
+        "height": 317.375
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 1,
+      "rect": {
+        "x": 80.1177978515625,
+        "y": 108,
+        "width": 1152,
+        "height": 420
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 2,
+      "rect": {
+        "x": 396.738037109375,
+        "y": 100,
+        "width": 806.390625,
+        "height": 600
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 3,
+      "rect": {
+        "x": 64.058837890625,
+        "y": 104.703125,
+        "width": 793.59375,
+        "height": 590.578125
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 4,
+      "rect": {
+        "x": 79.88232421875,
+        "y": 108,
+        "width": 1152,
+        "height": 420
+      }
+    },
+    {
+      "width": 1280,
+      "chapter": 5,
+      "rect": {
+        "x": 396.796875,
+        "y": 253.1875,
+        "width": 806.390625,
+        "height": 261.609375
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 1,
+      "rect": {
+        "x": 160,
+        "y": 108,
+        "width": 1280,
+        "height": 420
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 2,
+      "rect": {
+        "x": 446.40625,
+        "y": 100,
+        "width": 907.1875,
+        "height": 600
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 3,
+      "rect": {
+        "x": 72,
+        "y": 115.4375,
+        "width": 892.796875,
+        "height": 569.125
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 4,
+      "rect": {
+        "x": 160,
+        "y": 108,
+        "width": 1280,
+        "height": 420
+      }
+    },
+    {
+      "width": 1440,
+      "chapter": 5,
+      "rect": {
+        "x": 446.40625,
+        "y": 249.4375,
+        "width": 907.1875,
+        "height": 269.109375
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 1,
+      "rect": {
+        "x": 400.0609130859375,
+        "y": 108,
+        "width": 1520,
+        "height": 420
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 2,
+      "rect": {
+        "x": 595.324951171875,
+        "y": 100,
+        "width": 1209.59375,
+        "height": 600
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 3,
+      "rect": {
+        "x": 95.8779296875,
+        "y": 105.28125,
+        "width": 1190.390625,
+        "height": 589.4375
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 4,
+      "rect": {
+        "x": 399.93896484375,
+        "y": 108,
+        "width": 1520,
+        "height": 420
+      }
+    },
+    {
+      "width": 1920,
+      "chapter": 5,
+      "rect": {
+        "x": 595.203125,
+        "y": 244.5,
+        "width": 1209.59375,
+        "height": 278.984375
+      }
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": []
+}
