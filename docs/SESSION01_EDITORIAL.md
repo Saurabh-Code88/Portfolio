@@ -58,7 +58,7 @@ sections). An attempted fresh before pass was interrupted during hot reload; its
 capture was discarded. The first after pass timed out after Home and Toolkit; a stable
 pass hides development controls without changing application rendering. This host uses
 SwiftShader/software video decoding; no physical-GPU or full-speed quality claim is made.
-Validation results and final artifact bytes are recorded below after completion.
+Validation results and final artifact bytes are recorded below after completion.
 
 ## Release gates and assets
 - Lint exit **0**, typecheck exit **0**, tests exit **0** (45 passed, zero skipped), production build exit **0** (18 pages).
@@ -67,10 +67,10 @@ Validation results and final artifact bytes are recorded below after completion.
 - Full-render 1280x800 captures of all six destinations completed with no page errors and were individually inspected. The process exit code was not retained across the interruption; `after.json` records completion evidence.
 - One initial test failed on whitespace in a source-string assertion. That brittle assertion was replaced with actual content/registry invariants, and the complete suite then passed.
 - The attempted development controller run exited 1 on initial-page timeout; it is not claimed as a passing run. Production validation below supersedes that unavailable preview.
-- See [gate results](./validation/editorial/gates.json), [updated screenshots](./validation/editorial/), and the [committed before reference](./validation/chapters/).
+- See [gate results](./validation/editorial/gates.json), [updated screenshots](./validation/editorial/), and the [committed before reference](./validation/chapters/).
 - Final production browser exit **0**: 12 grouped checks passed, zero page errors and zero console errors. Geometry covered all six stops at 1024/1280/1440/1920px; station raycast hover/drag gesture, native project disclosure/nested scroll, keyboard Next/Previous, manual/reverse scrolling and Return to Station cleanup passed. All 16 SVG routes returned HTTP200 with no runtime icon CDN request. 375/768px, normal-URL reduced motion and canvas-disabled fallback retained their original content/layout.
 - This production pass suppresses raster draws solely for controller/layout checks. It does not establish visual GPU performance; the six full-render captures are separate evidence. The first production attempt passed all width checks but failed an upper-edge station pointer sample immediately after resize; allowing scene settling and using the hull center passed without changing application interaction code.
 - [Production results](./validation/editorial/production.json) include exact measured section rectangles and the completed check list.
 - Remaining limits: physical-GPU/full-speed artistic review; visual checks used 1280x800 captures, while the four-width matrix checked geometry/interactions. Dynamic-video contrast was visually inspected, not certified by a pixel-level AA measurement. Larger Home text may need local scrolling within its protected upper-left area. Unsupported/unbundled brand artwork remains text-only. Existing project repository targets were verified in rendered links; remote repository availability was not exhaustively fetched. No new live demos or publication URLs were invented.
-- No push, merge or deployment. Stop after Session 01.
-- Final diff review corrected a punctuation encoding artifact in the metric separator. Release gates were repeated on that final source; the production interaction pass precedes only this punctuation correction.
+- No push, merge or deployment. Stop after Session 01.
+- Final diff review corrected a punctuation encoding artifact in the metric separator. Release gates were repeated on that final source; the production interaction pass precedes only this punctuation correction.
